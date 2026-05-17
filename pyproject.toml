@@ -1,0 +1,44 @@
+[project]
+name = "app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic==1.13.0",
+    "apscheduler==3.10.4",
+    "bcrypt==4.1.2",
+    "fastapi==0.104.1",
+    "mysql-connector-python==8.2.0",
+    "numpy==1.26.3",
+    "openpyxl==3.1.2",
+    "pandas==2.3.3",
+    "passlib[bcrypt]==1.7.4",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.1",
+    "pytesseract==0.3.10",
+    "python-docx==0.8.11",
+    "python-dotenv==1.0.0",
+    "python-jose[cryptography]==3.3.0",
+    "python-multipart==0.0.6",
+    "python-slugify==8.0.1",
+    "reportlab==4.0.9",
+    "requests==2.31.0",
+    "scikit-learn==1.8.0",
+    "scipy==1.16.3",
+    "sqlalchemy==2.0.40",
+    "statsmodels==0.14.6",
+    "twilio==8.10.0",
+    "uvicorn[standard]==0.24.0",
+]
+
+[dependency-groups]
+dev = [
+    "black==23.12.0",
+    "flake8==6.1.0",
+    "httpx==0.25.2",
+    "pylint==3.0.3",
+    "pytest==7.4.3",
+    "pytest-asyncio==0.21.1",
+    "pytest-cov==4.1.0",
+]
