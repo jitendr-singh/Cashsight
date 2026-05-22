@@ -5,6 +5,7 @@ import logging
 
 from app.config.settings import settings
 from app.config.database import engine, Base
+from app.routes import auth
 
 # Setup logging
 logging.basicConfig(
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(auth.router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
@@ -55,7 +57,7 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        app,
+        "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=settings.DEBUG
