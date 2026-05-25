@@ -10,6 +10,7 @@ from app.utils.security import (
     create_access_token, verify_token
 )
 
+# 🚨 FIXED: Prefix ko poori tarah hata diya hai taaki routing exact wahi ho jo frontend dhoondh rha h
 router = APIRouter(tags=["Authentication"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -34,6 +35,7 @@ async def get_current_user(
     
     return user
 
+
 @router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -50,17 +52,26 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         password_hash=get_password_hash(user_data.password)
     )
     
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    access_token = create_access_token(data={"sub": new_user.id})
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": UserResponse.model_validate(new_user)
-    }
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Explicitly conversion to string for standard JWT claim validation
+        access_token = create_access_token(data={"sub": str(new_user.id)})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": UserResponse.model_validate(new_user)
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
+
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(
@@ -75,7 +86,7 @@ async def login(
             detail="Invalid credentials"
         )
     
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data={"sub": str(user.id)})
     
     return {
         "access_token": access_token,
@@ -83,6 +94,8 @@ async def login(
         "user": UserResponse.model_validate(user)
     }
 
+
+# 🚨 EXACT STANDARD ROUTE PATH FOR FRONTEND MATCH:
 @router.get("/users/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     return UserResponse.model_validate(current_user)
