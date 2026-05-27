@@ -12,9 +12,9 @@ const API = axios.create({
 // REQUEST INTERCEPTOR: Har request bhejne se pehle localStorage se token check karega
 API.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token'); // Login ke baad hum token yahan save karenge
+        const token = localStorage.getItem('authToken');
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`; // FastAPI OAuth2 format
+            config.headers.Authorization = `Bearer ${token}`;
         }
         return config;
     },
@@ -29,7 +29,7 @@ API.interceptors.response.use(
     (error) => {
         if (error.response && error.response.status === 401) {
             console.error('Session expired or unauthorized. Redirecting to login...');
-            localStorage.removeItem('token'); // Purana invalid token hatao
+            localStorage.removeItem('authToken');
             // Agar aap chaho toh yahan window.location.href = '/login' bhi kar sakte ho baad mein
         }
         return Promise.reject(error);
