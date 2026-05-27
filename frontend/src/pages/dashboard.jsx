@@ -34,6 +34,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import '../styles/Dashboard.css';
+import Transactions from './Transactions';
 
 const CASHFLOW_DATA = [
   { month: 'Jan', income: 18000, expense: 12000 },
@@ -624,13 +625,7 @@ const Dashboard = () => {
         <div className="dash-content">
           {activeSection === 'dashboard' && <DashboardHome />}
 
-          {activeSection === 'transactions' && (
-            <PlaceholderSection
-              icon={ArrowLeftRight}
-              title="Transactions Hub"
-              description="Add, filter, and reconcile transactions in real time. This module will connect to your database and Pandas engine in the next release."
-            />
-          )}
+          {activeSection === 'transactions' && <Transactions />}
 
           {activeSection === 'analytics' && (
             <PlaceholderSection
