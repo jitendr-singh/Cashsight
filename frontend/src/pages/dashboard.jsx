@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import '../styles/Dashboard.css';
 import Transactions from './Transactions';
+import Analytics from './Analytics';
 
 const CASHFLOW_DATA = [
   { month: 'Jan', income: 18000, expense: 12000 },
@@ -627,13 +628,7 @@ const Dashboard = () => {
 
           {activeSection === 'transactions' && <Transactions />}
 
-          {activeSection === 'analytics' && (
-            <PlaceholderSection
-              icon={BarChart3}
-              title="Advanced Analytics"
-              description="AI-powered insights, category trimming recommendations, and dynamic Recharts visualizations — shipping in the next phase."
-            />
-          )}
+          {activeSection === 'analytics' && <Analytics />}
 
           {activeSection === 'settings' && (
             <TiltCard className="dash-settings animate-in" glow="violet">

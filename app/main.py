@@ -8,6 +8,8 @@ from app.config.database import engine, Base
 from app.routes import auth
 # from app.routes import transactions
 from app.routes.transaction import router as transactions_router
+from app.routes.analytics import router as analytics_router
+
 
 # Setup logging
 logging.basicConfig(
@@ -39,8 +41,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(auth.router, prefix="/api/v1")
-# app.include_router(transactions.router, prefix="/api/v1")
 app.include_router(transactions_router, prefix="/api/v1")
+app.include_router(analytics_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
