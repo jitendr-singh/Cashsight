@@ -40,6 +40,7 @@ class SavingsGoal(Base):
 
     # Relationship
     user = relationship("User", back_populates="savings_goals")
+    contributions = relationship("SavingsContribution", back_populates="goal", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<SavingsGoal(id={self.id}, title={self.title}, target={self.target_amount})>"

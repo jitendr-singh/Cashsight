@@ -429,6 +429,12 @@ export const savingsService = {
     });
   },
 
+  withdrawMoney: async (goalId, amount) => {
+    return request(`/savings/${goalId}/withdraw?amount=${amount}`, {
+      method: 'POST'
+    });
+  },
+
   updateGoal: async (goalId, goalData) => {
     return request(`/savings/${goalId}`, {
       method: 'PUT',
@@ -440,6 +446,10 @@ export const savingsService = {
     return request(`/savings/${goalId}`, {
       method: 'DELETE'
     });
+  },
+
+  getContributions: async () => {
+    return request('/savings/contributions/all', {}, []);
   }
 };
 

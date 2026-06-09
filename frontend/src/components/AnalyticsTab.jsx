@@ -39,24 +39,43 @@ export default function AnalyticsTab() {
   // Drawer (Option A Slide-out) State
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [categories, setCategories] = useState([]);
-  
+
   // Advanced Filter Panel staging values (modified within the drawer UI)
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedTxnType, setSelectedTxnType] = useState('both'); // both | income | expense
+  const [selectedTxnType, setSelectedTxnType] = useState('all'); // all | income | expense | savings
   const [minAmount, setMinAmount] = useState('');
   const [maxAmount, setMaxAmount] = useState('');
   const [sliderAmount, setSliderAmount] = useState(1000);
 
   // Active Filter values (trigger actual API calls)
   const [activeCategory, setActiveCategory] = useState('all');
-  const [activeTxnType, setActiveTxnType] = useState('both');
+  const [activeTxnType, setActiveTxnType] = useState('all');
   const [activeMinAmount, setActiveMinAmount] = useState('');
   const [activeMaxAmount, setActiveMaxAmount] = useState('');
+
+  const getRangeSubtitle = () => {
+    if (viewMode === 'day') {
+      const [year, monthStr] = selectedMonthYear.split('-');
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthLabel = monthNames[parseInt(monthStr, 10) - 1];
+      return `Daily overview of ${monthLabel} ${year}`;
+    }
+    if (viewMode === 'month') {
+      return `Monthly overview of Year ${selectedYear}`;
+    }
+    if (viewMode === 'year') {
+      return `Yearly overview from ${startYear} to ${endYear}`;
+    }
+    if (viewMode === 'custom') {
+      return `Custom range from ${startDate} to ${endDate}`;
+    }
+    return 'Unified dynamic period trajectories';
+  };
 
   // Sync slider visual when manual max amount changes to a valid number
   useEffect(() => {
     const parsed = parseInt(maxAmount, 10);
-    if (!isNaN(parsed) && parsed >= 10 && parsed <= 10000) {
+    if (!isNaN(parsed) && parsed >= 0) {
       setSliderAmount(parsed);
     }
   }, [maxAmount]);
@@ -124,6 +143,8 @@ export default function AnalyticsTab() {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const chartContainerRef = useRef(null);
   const cardRef = useRef(null);
+  // Holds the latest filtered chart point values so handleDotHover can read them
+  const filteredDataRef = useRef({ income: [], expense: [], savings: [] });
   const [tooltipState, setTooltipState] = useState({
     visible: false,
     x: 0,
@@ -134,6 +155,7 @@ export default function AnalyticsTab() {
     label: '',
     income: 0,
     expense: 0,
+    savings: 0,
     index: null
   });
 
@@ -151,24 +173,24 @@ export default function AnalyticsTab() {
     setHoveredIndex(idx);
     const dotElement = e.currentTarget;
     const dotRect = dotElement.getBoundingClientRect();
-    
+
     if (!cardRef.current) return;
     const cardRect = cardRef.current.getBoundingClientRect();
-    
+
     const x = dotRect.left - cardRect.left + dotRect.width / 2;
     const y = dotRect.top - cardRect.top + dotRect.height / 2;
-    
+
     let translateX = '-50%';
     if (x < 100) {
       translateX = '0%';
     } else if (cardRect.width - x < 100) {
       translateX = '-100%';
     }
-    
+
     const isUpperHalf = y < 180;
     const translateY = isUpperHalf ? '0%' : '-100%';
     const marginTop = isUpperHalf ? '12px' : '-12px';
-    
+
     setTooltipState({
       visible: true,
       x,
@@ -177,8 +199,9 @@ export default function AnalyticsTab() {
       translateY,
       marginTop,
       label: chartData.labels[idx] || '',
-      income: chartData.income[idx] || 0,
-      expense: chartData.expense[idx] || 0,
+      income:  filteredDataRef.current.income[idx]  ?? 0,
+      expense: filteredDataRef.current.expense[idx] ?? 0,
+      savings: filteredDataRef.current.savings[idx] ?? 0,
       index: idx
     });
   };
@@ -254,9 +277,10 @@ export default function AnalyticsTab() {
       const filters = {
         view_mode: viewMode,
         category: activeCategory !== 'all' ? activeCategory : undefined,
-        txn_type: activeTxnType !== 'both' ? activeTxnType : undefined,
-        min_amount: activeMinAmount ? parseFloat(activeMinAmount) : undefined,
-        max_amount: activeMaxAmount ? parseFloat(activeMaxAmount) : undefined,
+        // Only send income/expense to API — savings & all are handled client-side
+        txn_type: (activeTxnType === 'income' || activeTxnType === 'expense') ? activeTxnType : undefined,
+        min_amount: activeMinAmount !== '' ? parseFloat(activeMinAmount) : undefined,
+        max_amount: activeMaxAmount !== '' ? parseFloat(activeMaxAmount) : undefined,
       };
 
       // Add timeframe variables based on mode
@@ -298,17 +322,16 @@ export default function AnalyticsTab() {
     setDrawerOpen(false);
   };
 
-  // Reset Drawer Filters
   const handleResetFilters = () => {
     setSelectedCategory('all');
-    setSelectedTxnType('both');
+    setSelectedTxnType('all');
     setMinAmount('');
     setMaxAmount('');
     setSliderAmount(1000);
 
     // Reset active filters immediately to clear the chart
     setActiveCategory('all');
-    setActiveTxnType('both');
+    setActiveTxnType('all');
     setActiveMinAmount('');
     setActiveMaxAmount('');
   };
@@ -358,25 +381,58 @@ export default function AnalyticsTab() {
   const visibleLabelIndices = getVisibleLabelIndices();
 
 
-  const maxVal = Math.max(
-    ...chartData.income,
-    ...chartData.expense,
-    1.0
-  );
+  // ── Client-side Amount Range Filter ──
+  // Zero-out any data points whose primary value falls outside [minAmt, maxAmt]
+  const minAmt = activeMinAmount !== '' ? parseFloat(activeMinAmount) : null;
+  const maxAmt = activeMaxAmount !== '' ? parseFloat(activeMaxAmount) : null;
 
+  const applyAmountFilter = (arr) => {
+    if (minAmt === null && maxAmt === null) return arr;
+    return arr.map((val) => {
+      if (minAmt !== null && val < minAmt) return 0;
+      if (maxAmt !== null && val > maxAmt) return 0;
+      return val;
+    });
+  };
+
+  const filteredIncome  = applyAmountFilter(chartData.income);
+  const filteredExpense = applyAmountFilter(chartData.expense);
+  // Savings = income - expense; re-derive after filtering so it stays consistent
+  const filteredSavings = filteredIncome.map((inc, i) => inc - filteredExpense[i]);
+
+  // ── Symmetric Y-axis: maps full [minVal, maxVal] so negative savings stays inside ──
+  const maxVal = Math.max(...filteredIncome, ...filteredExpense, ...filteredSavings, 1.0);
+  const minVal = Math.min(...filteredIncome, ...filteredExpense, ...filteredSavings, 0);
+  const yRange = maxVal - minVal || 1; // total span
+
+  // getCoordinates uses the full [minVal, maxVal] range so negatives are mapped inside
   const getCoordinates = (array) => {
-    if (pointsCount === 0) return [];
+    if (array.length === 0) return [];
     return array.map((val, idx) => {
-      const x = pointsCount === 1 
-        ? width / 2 
-        : paddingX + (idx / (pointsCount - 1)) * (width - 2 * paddingX);
-      const y = height - paddingY - (val / maxVal) * (height - 2 * paddingY);
+      const x = array.length === 1
+        ? width / 2
+        : paddingX + (idx / (array.length - 1)) * (width - 2 * paddingX);
+      // Map val from [minVal, maxVal] → [bottom (height-paddingY), top (paddingY)]
+      const y = height - paddingY - ((val - minVal) / yRange) * (height - 2 * paddingY);
       return { x, y, value: val };
     });
   };
 
-  const incomePoints = getCoordinates(chartData.income);
-  const expensePoints = getCoordinates(chartData.expense);
+  // Y position of zero line (visible when minVal < 0)
+  const zeroY = height - paddingY - ((0 - minVal) / yRange) * (height - 2 * paddingY);
+  const hasNegative = minVal < 0;
+
+  // Update ref so handleDotHover always reads latest filtered values
+  filteredDataRef.current = {
+    income:  filteredIncome,
+    expense: filteredExpense,
+    savings: filteredSavings,
+  };
+
+  const incomePoints  = getCoordinates(filteredIncome);
+  const expensePoints = getCoordinates(filteredExpense);
+  const savingsPoints = getCoordinates(filteredSavings);
+
 
   // Generate smooth cubic bezier SVG paths
   const generateCurvePath = (points) => {
@@ -402,19 +458,25 @@ export default function AnalyticsTab() {
     return `${curve} L ${points[points.length - 1].x} ${height - paddingY} L ${points[0].x} ${height - paddingY} Z`;
   };
 
-  const incomePath = generateCurvePath(incomePoints);
-  const expensePath = generateCurvePath(expensePoints);
-  const incomeArea = generateAreaPath(incomePoints);
+  // Determine which lines to show based on activeTxnType
+  const showIncome  = activeTxnType === 'all' || activeTxnType === 'both' || activeTxnType === 'income';
+  const showExpense = activeTxnType === 'all' || activeTxnType === 'both' || activeTxnType === 'expense';
+  const showSavings = activeTxnType === 'all' || activeTxnType === 'both' || activeTxnType === 'savings';
+
+  const incomePath  = showIncome  ? generateCurvePath(incomePoints)  : '';
+  const expensePath = showExpense ? generateCurvePath(expensePoints) : '';
+  const savingsPath = showSavings ? generateCurvePath(savingsPoints) : '';
+  const incomeArea  = showIncome  ? generateAreaPath(incomePoints)   : '';
 
   // Total Burn category reference for progress scaling
   const maxCategoryAmount = Math.max(...categoryBreakdown.map((c) => c.amount), 1.0);
 
   return (
     <div className="space-y-6 stagger-in">
-      
+
       {/* 1. Glassmorphic KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         {/* Total Income Card */}
         <div className="glass-card p-5 rounded-2xl relative overflow-hidden group">
           <p className="text-[11px] font-bold text-text-secondary/50 uppercase tracking-widest">Total Income</p>
@@ -508,31 +570,30 @@ export default function AnalyticsTab() {
 
       {/* 2. Main Analytics Content Section */}
       <div className="grid grid-cols-12 gap-6 items-stretch">
-        
+
         {/* Trajectory Area Chart (col-span-8) */}
         <div className="col-span-12 lg:col-span-8 glass-card p-6 rounded-3xl flex flex-col justify-between relative" ref={cardRef}>
-          
+
           {/* Chart Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-glass-border/20 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 border-b border-glass-border/20 pb-4">
             <div>
               <h3 className="font-outfit font-bold text-lg text-text-primary">Overview & Analytics</h3>
-              <p class="text-xs text-text-secondary/50">Unified dynamic period trajectories</p>
+              <p className="text-xs text-text-secondary/50">{getRangeSubtitle()}</p>
             </div>
 
             {/* Fused Capsule Toggle Controls + Date Selector */}
             <div className="flex flex-wrap items-center gap-3">
-              
+
               {/* Segmented Toggles */}
               <div className="flex bg-white/5 p-1 rounded-xl border border-glass-border/40">
                 {['day', 'month', 'year', 'custom'].map((mode) => (
                   <button
                     key={mode}
                     onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all capitalize ${
-                      viewMode === mode
+                    className={`px-3 py-1 text-xs font-bold rounded-lg transition-all capitalize ${viewMode === mode
                         ? 'text-primary bg-primary/10 shadow-sm'
                         : 'text-text-secondary hover:text-white'
-                    }`}
+                      }`}
                   >
                     {mode}
                   </button>
@@ -546,7 +607,7 @@ export default function AnalyticsTab() {
                     type="month"
                     value={selectedMonthYear}
                     onChange={(e) => setSelectedMonthYear(e.target.value)}
-                    className="bg-[#0e131f] border border-glass-border/50 text-xs font-bold text-text-primary rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50 transition-colors"
+                    className="bg-[#0e131f] border border-glass-border/50 text-xs font-bold text-text-primary rounded-xl px-3 py-2 focus:outline-none focus:border-primary/50 transition-colors [color-scheme:dark]"
                   />
                 )}
                 {viewMode === 'month' && (
@@ -603,7 +664,7 @@ export default function AnalyticsTab() {
                         className="bg-[#0e131f] border border-glass-border/50 text-[10px] font-bold text-text-primary rounded-xl px-2 py-1.5 focus:outline-none focus:border-primary/50"
                       />
                     </div>
-                    
+
                     {/* Date Presets Capsule row */}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1">
@@ -623,7 +684,7 @@ export default function AnalyticsTab() {
                           </button>
                         ))}
                       </div>
-                      
+
                       {validationError && (
                         <span className="text-[9px] text-rose-expense font-bold animate-pulse text-right">
                           {validationError}
@@ -645,16 +706,36 @@ export default function AnalyticsTab() {
             </div>
           </div>
 
-          {/* Scrollable Container Wrapper for mobile responsiveness */}
-          <div 
+          {/* Chart Legend — shows active lines */}
+          <div className="flex items-center gap-4 mb-3 flex-wrap">
+            {showIncome && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-0.5 rounded-full" style={{ background: '#5de6ff' }} />
+                <span className="text-[10px] font-bold text-text-secondary/60 uppercase tracking-wide">Income</span>
+              </div>
+            )}
+            {showExpense && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-0.5 rounded-full" style={{ background: '#fb7185' }} />
+                <span className="text-[10px] font-bold text-text-secondary/60 uppercase tracking-wide">Expense</span>
+              </div>
+            )}
+            {showSavings && (
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-0.5 rounded-full" style={{ background: '#5af0b3' }} />
+                <span className="text-[10px] font-bold text-text-secondary/60 uppercase tracking-wide">Savings</span>
+              </div>
+            )}
+          </div>
+          <div
             className="w-full overflow-x-auto overflow-y-hidden custom-scrollbar pb-6 pr-1"
             onScroll={handleScroll}
           >
-            <div 
+            <div
               className="w-full flex flex-col justify-between sm:!min-w-0"
               style={{ minWidth: shouldScroll ? `${Math.min(1600, Math.max(650, pointsCount * 35))}px` : '100%' }}
             >
-              
+
               {/* SVG Line / Curve Chart */}
               <div className="h-64 relative" ref={chartContainerRef}>
                 {loading ? (
@@ -680,6 +761,21 @@ export default function AnalyticsTab() {
                         <line key={idx} x1="0" y1={yVal} x2={width} y2={yVal} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
                       ))}
 
+                      {/* Zero baseline — shown when savings dips below zero */}
+                      {hasNegative && (
+                        <line
+                          x1="0" y1={zeroY} x2={width} y2={zeroY}
+                          stroke="rgba(251,113,133,0.35)"
+                          strokeWidth="1.5"
+                          strokeDasharray="6 4"
+                        />
+                      )}
+                      {hasNegative && (
+                        <text x={width - 4} y={zeroY - 4} fill="rgba(251,113,133,0.6)" fontSize="9" textAnchor="end" fontFamily="Outfit, sans-serif" fontWeight="700">
+                          ZERO
+                        </text>
+                      )}
+
                       {/* Area fill under income curve */}
                       {incomeArea && <path d={incomeArea} fill="url(#chartAreaGrad)" />}
 
@@ -688,6 +784,9 @@ export default function AnalyticsTab() {
 
                       {/* Expense curve (Rose/Pink) */}
                       {expensePath && <path d={expensePath} fill="none" stroke="#fb7185" strokeWidth="2.5" />}
+
+                      {/* Savings curve (Green) */}
+                      {savingsPath && <path d={savingsPath} fill="none" stroke="#5af0b3" strokeWidth="2.5" />}
 
                       {/* Hover Line */}
                       {hoveredIndex !== null && incomePoints[hoveredIndex] && (
@@ -703,8 +802,8 @@ export default function AnalyticsTab() {
                       )}
                     </svg>
 
-                    {/* HTML Interactive Dots Overlay (Always perfectly circular & responsive) */}
-                    {incomePoints.map((pt, idx) => {
+                    {/* Income Dots */}
+                    {showIncome && incomePoints.map((pt, idx) => {
                       const isHovered = hoveredIndex === idx;
                       // Show dots for all reasonable point counts (daily custom max = 46, day view max = 31)
                       const shouldShow = pointsCount <= 60 || isHovered;
@@ -734,7 +833,8 @@ export default function AnalyticsTab() {
                       );
                     })}
 
-                    {expensePoints.map((pt, idx) => {
+                    {/* Expense Dots */}
+                    {showExpense && expensePoints.map((pt, idx) => {
                       const isHovered = hoveredIndex === idx;
                       const shouldShow = pointsCount <= 60 || isHovered;
                       const dotSize = isHovered ? '12px' : (isMobile ? '10px' : '8px');
@@ -761,6 +861,35 @@ export default function AnalyticsTab() {
                         />
                       );
                     })}
+
+                    {/* Savings Dots */}
+                    {showSavings && savingsPoints.map((pt, idx) => {
+                      const isHovered = hoveredIndex === idx;
+                      const shouldShow = pointsCount <= 60 || isHovered;
+                      const dotSize = isHovered ? '12px' : (isMobile ? '10px' : '8px');
+
+                      return (
+                        <div
+                          key={`sav-dot-${idx}`}
+                          className="absolute rounded-full border border-[#0e131f] cursor-pointer pointer-events-auto transition-all duration-150 transform -translate-x-1/2 -translate-y-1/2 z-10"
+                          style={{
+                            left: `${(pt.x / width) * 100}%`,
+                            top: `${(pt.y / height) * 100}%`,
+                            width: dotSize,
+                            height: dotSize,
+                            borderWidth: isHovered ? '1.5px' : '1px',
+                            backgroundColor: '#5af0b3',
+                            boxShadow: isHovered ? '0 0 10px #5af0b3' : 'none',
+                            opacity: shouldShow ? 1 : 0,
+                            transition: 'opacity 0.15s ease, width 0.15s ease, height 0.15s ease'
+                          }}
+                          onMouseEnter={(e) => handleDotHover(idx, e)}
+                          onMouseLeave={handleDotLeave}
+                          onTouchStart={(e) => { e.stopPropagation(); handleDotHover(idx, e); }}
+                          onTouchEnd={handleDotLeave}
+                        />
+                      );
+                    })}
                   </>
                 )}
               </div>
@@ -771,8 +900,8 @@ export default function AnalyticsTab() {
                   const show = visibleLabelIndices.includes(idx);
                   if (!show) return null;
 
-                  const ptX = pointsCount === 1 
-                    ? width / 2 
+                  const ptX = pointsCount === 1
+                    ? width / 2
                     : paddingX + (idx / (pointsCount - 1)) * (width - 2 * paddingX);
                   const leftPercent = (ptX / width) * 100;
 
@@ -787,7 +916,7 @@ export default function AnalyticsTab() {
                     <span
                       key={idx}
                       className="absolute whitespace-nowrap"
-                      style={{ 
+                      style={{
                         left: `${leftPercent}%`,
                         transform: `translateX(${translateX})`
                       }}
@@ -813,9 +942,16 @@ export default function AnalyticsTab() {
               }}
             >
               <p className="text-text-secondary/50 font-bold mb-0.5">{tooltipState.label}</p>
-              <div className="flex gap-2">
-                <span className="text-secondary font-bold">Income: {formatCurrency(tooltipState.income, 0)}</span>
-                <span className="text-rose-expense font-bold">Expense: {formatCurrency(tooltipState.expense, 0)}</span>
+              <div className="flex flex-col gap-0.5">
+                {showIncome && (
+                  <span className="text-secondary font-bold">Income: {formatCurrency(tooltipState.income, 0)}</span>
+                )}
+                {showExpense && (
+                  <span className="text-rose-expense font-bold">Expense: {formatCurrency(tooltipState.expense, 0)}</span>
+                )}
+                {showSavings && (
+                  <span className="text-primary font-bold">Savings: {formatCurrency(tooltipState.savings, 0)}</span>
+                )}
               </div>
             </div>
           )}
@@ -845,7 +981,7 @@ export default function AnalyticsTab() {
                         <span className="text-xs font-semibold text-text-primary">{item.category}</span>
                       </div>
                       <span className="text-xs font-bold text-text-primary">
-                        {formatCurrency(item.amount, 0)} 
+                        {formatCurrency(item.amount, 0)}
                         <span className="text-[10px] text-text-secondary/40 font-medium ml-1">{pct}%</span>
                       </span>
                     </div>
@@ -905,11 +1041,10 @@ export default function AnalyticsTab() {
                       <td className="px-6 py-4 text-text-secondary/80 font-medium">{txn.date}</td>
                       <td className="px-6 py-4 font-bold text-text-primary">{txn.description || 'Transaction entry'}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-bold border ${
-                          isInc 
-                            ? 'bg-primary/10 text-primary border-primary/20' 
+                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-bold border ${isInc
+                            ? 'bg-primary/10 text-primary border-primary/20'
                             : 'bg-rose-expense/10 text-rose-expense border-rose-expense/20'
-                        }`}>
+                          }`}>
                           {txn.category}
                         </span>
                       </td>
@@ -936,7 +1071,7 @@ export default function AnalyticsTab() {
 
           {/* Drawer Panel */}
           <aside className="fixed top-0 right-0 h-full w-[340px] bg-slate-surface/90 backdrop-blur-2xl border-l border-glass-border/40 shadow-2xl p-6 z-[1000] flex flex-col justify-between transition-transform duration-300 ease-out translate-x-0">
-            
+
             {/* Drawer Header */}
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b border-glass-border/20 pb-4">
@@ -951,7 +1086,7 @@ export default function AnalyticsTab() {
 
               {/* Controls List */}
               <div className="space-y-5">
-                
+
                 {/* Category Dropdown */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest font-body-bold">Category</label>
@@ -969,19 +1104,24 @@ export default function AnalyticsTab() {
 
                 {/* Transaction Type Segment Controls */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest font-body-bold">Transaction Type</label>
-                  <div className="grid grid-cols-3 gap-1 bg-[#080e1a] p-1 rounded-xl border border-glass-border/40">
-                    {['both', 'income', 'expense'].map((t) => (
+                  <label className="text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest font-body-bold">Show Lines</label>
+                  <div className="grid grid-cols-2 gap-1 bg-[#080e1a] p-1 rounded-xl border border-glass-border/40">
+                    {[
+                      { key: 'all',     label: 'All' },
+                      { key: 'income',  label: 'Income' },
+                      { key: 'expense', label: 'Expense' },
+                      { key: 'savings', label: 'Savings' },
+                    ].map((t) => (
                       <button
-                        key={t}
-                        onClick={() => setSelectedTxnType(t)}
-                        className={`py-1 text-[10px] font-bold rounded-lg capitalize transition-all ${
-                          selectedTxnType === t
+                        key={t.key}
+                        onClick={() => setSelectedTxnType(t.key)}
+                        className={`py-1.5 text-[10px] font-bold rounded-lg capitalize transition-all ${
+                          selectedTxnType === t.key
                             ? 'text-primary bg-primary/10'
                             : 'text-text-secondary hover:text-white'
                         }`}
                       >
-                        {t}
+                        {t.label}
                       </button>
                     ))}
                   </div>
@@ -990,6 +1130,16 @@ export default function AnalyticsTab() {
                 {/* Amount Range Numeric Inputs */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest font-body-bold">Amount Range</label>
+                  {/* Hint showing actual data range */}
+                  {(() => {
+                    const allPositive = [...chartData.income, ...chartData.expense].filter(v => v > 0);
+                    const dataMin = allPositive.length > 0 ? Math.min(...allPositive) : 0;
+                    return (
+                      <p className="text-[9px] text-text-secondary/30 italic">
+                        Chart range: {formatCurrency(dataMin, 0)} – {formatCurrency(maxVal, 0)}
+                      </p>
+                    );
+                  })()}
                   <div className="flex gap-2 items-center">
                     <input
                       type="number"
@@ -1017,17 +1167,21 @@ export default function AnalyticsTab() {
                   </div>
                   <input
                     type="range"
-                    min="10"
-                    max="10000"
-                    value={sliderAmount}
+                    min="0"
+                    max={Math.ceil(maxVal)}
+                    value={Math.min(sliderAmount, Math.ceil(maxVal))}
                     onChange={(e) => {
                       const val = parseInt(e.target.value, 10);
                       setSliderAmount(val);
-                      setMaxAmount(String(val)); // sync to Max input
+                      setMaxAmount(String(val));
                     }}
                     className="w-full accent-primary bg-white/5 h-1 rounded-lg cursor-pointer"
                   />
-                  <p class="text-[9px] text-text-secondary/40 italic">Drag to set the upper bound on transaction amounts shown in the chart.</p>
+                  <div className="flex justify-between text-[9px] text-text-secondary/30">
+                    <span>0</span>
+                    <span>{formatCurrency(Math.ceil(maxVal), 0)}</span>
+                  </div>
+                  <p className="text-[9px] text-text-secondary/40 italic">Drag to set the upper bound on amounts shown in the chart.</p>
                 </div>
               </div>
             </div>

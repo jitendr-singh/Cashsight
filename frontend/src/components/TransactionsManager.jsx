@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { transactionService, analyticsService } from '../services/api';
 import AddTransactionModal from './AddTransactionModal';
 import { useCurrency } from '../context/CurrencyContext';
@@ -19,12 +18,7 @@ export default function TransactionsManager() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedTxn, setSelectedTxn] = useState(null);
 
-  // Form States
-  const [amount, setAmount] = useState('');
-  const [type, setType] = useState('expense');
-  const [category, setCategory] = useState('ELECTRONICS');
-  const [description, setDescription] = useState('');
-  const [paymentType, setPaymentType] = useState('Debit Card');
+  // Form States (used only for Edit callbacks now, fields live in AddTransactionModal)
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -181,49 +175,37 @@ export default function TransactionsManager() {
   // Handle Edit Action
   const handleEditClick = (txn) => {
     setSelectedTxn(txn);
-    setAmount(txn.amount.toString());
-    setType(txn.type);
-    setCategory(txn.category);
-    setDescription(txn.description.split(' - ')[0]);
-    setPaymentType(txn.payment_type);
     setShowEditModal(true);
   };
 
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
+  const handleEditSubmit = async (txnData) => {
     if (!selectedTxn) return;
 
     // Simulate mock update locally if mock id
     if (selectedTxn.id <= 5) {
       setTransactions(transactions.map(t => t.id === selectedTxn.id ? {
         ...t,
-        amount: parseFloat(amount),
-        type,
-        category: category.toUpperCase(),
-        description: `${description} - ${paymentType}`,
-        payment_type: paymentType
+        amount: txnData.amount,
+        type: txnData.type,
+        category: txnData.category.toUpperCase(),
+        description: txnData.description,
       } : t));
       setShowEditModal(false);
+      setSelectedTxn(null);
       return;
     }
 
     try {
-      // Custom endpoint simulation for backend updates
-      // (Backend provides transactional PUT routes)
       await fetch(`http://localhost:8000/api/v1/transactions/${selectedTxn.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('capitallens_token')}`
         },
-        body: JSON.stringify({
-          amount: parseFloat(amount),
-          type,
-          category: category.toUpperCase(),
-          description: `${description} - ${paymentType}`
-        })
+        body: JSON.stringify(txnData)
       });
       setShowEditModal(false);
+      setSelectedTxn(null);
       loadTransactionsData();
     } catch (err) {
       console.error('Failed to update transaction', err);
@@ -530,101 +512,16 @@ export default function TransactionsManager() {
         }}
       />
 
-      {/* --- EDIT TRANSACTION MODAL --- */}
-      {showEditModal && selectedTxn && createPortal(
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[200] backdrop-blur-md">
-          <div className="bg-surface-container border border-primary/30 rounded-xl p-6 w-full max-w-md shadow-2xl midnight-glass transform scale-100 transition-all duration-300">
-            <h4 className="font-headline-md text-[18px] text-text-primary mb-4 flex items-center justify-between font-bold">
-              Edit Transaction Entry
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedTxn(null);
-                }}
-                className="material-symbols-outlined text-on-surface-variant hover:text-rose-expense cursor-pointer bg-transparent border-none"
-              >
-                close
-              </button>
-            </h4>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-left">
-                <div>
-                  <label className="block text-xs font-bold text-on-surface-variant mb-1">TYPE</label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                    className="w-full bg-[#080e1a] border border-glass-border rounded-lg py-2 px-3 text-sm text-text-primary focus:outline-none focus:border-primary/50"
-                  >
-                    <option value="expense">Debit Card (Expense)</option>
-                    <option value="income">Direct Transfer (Income)</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-bold text-on-surface-variant mb-1">AMOUNT ({currencySymbol})</label>
-                  <input
-                    type="number"
-                    required
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="w-full bg-[#080e1a] border border-glass-border rounded-lg py-2 px-3 text-sm text-text-primary focus:outline-none focus:border-primary/50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 text-left">
-                <div>
-                  <label className="block text-xs font-bold text-on-surface-variant mb-1">CATEGORY</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-[#080e1a] border border-glass-border rounded-lg py-2 px-3 text-sm text-text-primary focus:outline-none focus:border-primary/50"
-                  >
-                    <option value="ELECTRONICS">ELECTRONICS</option>
-                    <option value="INCOME">INCOME</option>
-                    <option value="INVESTMENT">INVESTMENT</option>
-                    <option value="GROCERIES">GROCERIES</option>
-                    <option value="ENTERTAINMENT">ENTERTAINMENT</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-on-surface-variant mb-1">PAYMENT TYPE</label>
-                  <select
-                    value={paymentType}
-                    onChange={(e) => setPaymentType(e.target.value)}
-                    className="w-full bg-[#080e1a] border border-glass-border rounded-lg py-2 px-3 text-sm text-text-primary focus:outline-none focus:border-primary/50"
-                  >
-                    <option value="Debit Card">Debit Card</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Credit Card">Credit Card</option>
-                    <option value="Recurring">Recurring</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="text-left">
-                <label className="block text-xs font-bold text-on-surface-variant mb-1">DESCRIPTION</label>
-                <input
-                  type="text"
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-[#080e1a] border border-glass-border rounded-lg py-2 px-3 text-sm text-text-primary focus:outline-none focus:border-primary/50"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-primary to-secondary text-on-primary font-bold rounded-lg hover:brightness-110 transition-all text-sm shadow-[0_0_15px_rgba(90,240,179,0.3)]"
-              >
-                Save Ledger Updates
-              </button>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* --- EDIT TRANSACTION MODAL (reuses AddTransactionModal) --- */}
+      <AddTransactionModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedTxn(null);
+        }}
+        onSubmit={handleEditSubmit}
+        transaction={selectedTxn}
+      />
     </div>
   );
 }

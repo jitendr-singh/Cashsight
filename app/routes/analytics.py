@@ -7,6 +7,7 @@ import calendar
 
 from app.config.database import get_db
 from app.models.transaction import Transaction, TransactionType
+from app.models.savings import SavingsGoal
 from app.models.user import User
 from app.routes.auth import get_current_user
 
@@ -110,6 +111,12 @@ async def get_summary(
         last_month_runway = 99.0 if savings_up_to_last_month > 0 else 0.0
 
     # 5. Trend Calculations
+    # Income Trend (% Change)
+    if last_month_inc > 0:
+        income_trend = round(((this_month_inc - last_month_inc) / last_month_inc * 100), 2)
+    else:
+        income_trend = 0.0
+
     # Burn Rate Trend (% Change)
     if last_month_exp > 0:
         burn_rate_trend = round(((this_month_exp - last_month_exp) / last_month_exp * 100), 2)
@@ -122,10 +129,21 @@ async def get_summary(
     # Runway Trend (Absolute Difference in months)
     runway_trend = round(current_runway - last_month_runway, 1)
 
+    # 6. Savings Goals lock & Available cash breakout
+    locked_savings = db.query(func.sum(SavingsGoal.saved_amount)).filter(
+        SavingsGoal.user_id == current_user.id
+    ).scalar() or 0.0
+
+    available_cash = total_savings - locked_savings
+
     return {
         "total_income": round(total_income, 2),
+        "monthly_income": round(this_month_inc, 2),
+        "income_trend": income_trend,
         "total_expense": round(total_expense, 2),
         "total_savings": round(total_savings, 2),
+        "locked_savings": round(locked_savings, 2),
+        "available_cash": round(available_cash, 2),
         "savings_rate": this_month_savings_rate,
         "savings_rate_trend": savings_rate_trend,
         "burn_rate": round(this_month_exp, 2),

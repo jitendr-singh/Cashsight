@@ -9,6 +9,8 @@ import SpendMix from './components/SpendMix';
 import RecentCommandLogs from './components/RecentCommandLogs';
 import TransactionsManager from './components/TransactionsManager';
 import AnalyticsTab from './components/AnalyticsTab';
+import SmartSavingsAlert from './components/SmartSavingsAlert';
+import SavingsTab from './components/SavingsTab';
 import { analyticsService, savingsService } from './services/api';
 
 export default function App() {
@@ -28,6 +30,8 @@ export default function App() {
   // Legacy High-Fidelity Mockup Fallbacks for empty database states
   const mockSummary = {
     total_income: 1261042.00,
+    monthly_income: 1261042.00,
+    income_trend: 12.4,
     total_expense: 12450.00,
     total_savings: 1248592.00,
     savings_rate: 99.0,
@@ -225,11 +229,18 @@ export default function App() {
               </div>
             </header>
 
+            {/* Smart Savings Alert Widget */}
+            <SmartSavingsAlert
+              summaryData={summaryData}
+              goals={savingsGoals}
+              onRefresh={fetchDashboardData}
+            />
+
             {/* Bento Metrics Cards */}
             <MetricsGrid summaryData={summaryData} />
 
             {/* Trajectory Bar Charts */}
-            <WealthGrowthChart />
+            <WealthGrowthChart summaryData={summaryData} />
 
             {/* Bottom Content Grid (Savings Goals & Spend Mix) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-gutter-desktop mb-8">
@@ -237,6 +248,7 @@ export default function App() {
               <SavingsGoals
                 goals={savingsGoals}
                 onRefresh={fetchDashboardData}
+                onViewAll={() => setActiveTab('savings')}
               />
 
               {/* Spend Mix & Breakdown (Span-7) */}
@@ -253,6 +265,8 @@ export default function App() {
           <AnalyticsTab />
         ) : activeTab === 'transactions' ? (
           <TransactionsManager />
+        ) : activeTab === 'savings' ? (
+          <SavingsTab goals={savingsGoals} onRefresh={fetchDashboardData} />
         ) : (
           /* Placeholder for other tab actions */
           <div className="midnight-glass p-8 rounded-xl text-center min-h-[300px] flex flex-col items-center justify-center gap-4">

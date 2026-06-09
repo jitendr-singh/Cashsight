@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.config.database import get_db
 from app.models.savings import SavingsGoal
+from app.models.savings_contribution import SavingsContribution
 from app.models.user import User
 from app.schemas.savings import (
     SavingsGoalCreate,
@@ -69,6 +70,15 @@ async def create_savings_goal(
     db.add(new_goal)
     db.commit()
     db.refresh(new_goal)
+
+    # Initial deposit check
+    if new_goal.saved_amount > 0:
+        initial_log = SavingsContribution(
+            goal_id=new_goal.id,
+            amount=new_goal.saved_amount
+        )
+        db.add(initial_log)
+        db.commit()
 
     # Progress calculate karo
     progress = calculate_progress(new_goal)
@@ -156,13 +166,21 @@ async def add_money_to_goal(
             detail="Savings goal not found"
         )
 
-    # Amount add karo
-    goal.saved_amount += amount
-
-    # Check karo - goal complete hui?
-    if goal.saved_amount >= goal.target_amount:
+    # Calculate actual added amount (cannot exceed target amount cap)
+    actual_added = amount
+    if goal.saved_amount + amount >= goal.target_amount:
+        actual_added = max(0.0, goal.target_amount - goal.saved_amount)
+        goal.saved_amount = goal.target_amount
         goal.is_completed = True
-        goal.saved_amount = goal.target_amount  # Cap at target
+    else:
+        goal.saved_amount += amount
+
+    if actual_added > 0:
+        contribution = SavingsContribution(
+            goal_id=goal.id,
+            amount=actual_added
+        )
+        db.add(contribution)
 
     db.commit()
     db.refresh(goal)
@@ -170,7 +188,62 @@ async def add_money_to_goal(
     progress = calculate_progress(goal)
 
     return {
-        "message": f"₹{amount} added successfully!",
+        "message": f"₹{actual_added} added successfully!",
+        "goal_title": goal.title,
+        "saved_amount": goal.saved_amount,
+        "target_amount": goal.target_amount,
+        "progress_percentage": progress["progress_percentage"],
+        "is_completed": goal.is_completed
+    }
+
+
+# ─── WITHDRAW MONEY FROM GOAL ──────────────────────────────────────────────────
+
+@router.post("/savings/{goal_id}/withdraw")
+async def withdraw_money_from_goal(
+    goal_id: int,
+    amount: float,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Goal mein se paisa nikalo / adjust karo
+    """
+    goal = db.query(SavingsGoal).filter(
+        SavingsGoal.id == goal_id,
+        SavingsGoal.user_id == current_user.id
+    ).first()
+
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Savings goal not found"
+        )
+
+    # Calculate actual withdrawable (cap at what is currently saved)
+    actual_withdrawn = min(amount, goal.saved_amount)
+    if actual_withdrawn <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No funds available to withdraw or invalid amount"
+        )
+
+    goal.saved_amount -= actual_withdrawn
+    goal.is_completed = False  # Mark as active since balance dropped
+
+    # Log as negative contribution
+    contribution = SavingsContribution(
+        goal_id=goal.id,
+        amount=-actual_withdrawn
+    )
+    db.add(contribution)
+    db.commit()
+    db.refresh(goal)
+
+    progress = calculate_progress(goal)
+
+    return {
+        "message": f"₹{actual_withdrawn} withdrawn successfully!",
         "goal_title": goal.title,
         "saved_amount": goal.saved_amount,
         "target_amount": goal.target_amount,
@@ -268,3 +341,29 @@ async def get_savings_summary(
         "total_saved_amount": total_saved,
         "overall_progress": round(overall_progress, 1)
     }
+
+
+# ─── ALL CONTRIBUTIONS LOGS ──────────────────────────────────────────────────
+
+@router.get("/savings/contributions/all")
+async def get_all_contributions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    User ke saare goals ki contributions history lo
+    """
+    contributions = db.query(SavingsContribution).join(SavingsGoal).filter(
+        SavingsGoal.user_id == current_user.id
+    ).order_by(SavingsContribution.created_at.desc()).limit(30).all()
+
+    return [
+        {
+            "id": c.id,
+            "goal_id": c.goal_id,
+            "goal_title": c.goal.title,
+            "amount": c.amount,
+            "created_at": c.created_at.strftime("%b %d, %Y %H:%M")
+        }
+        for c in contributions
+    ]

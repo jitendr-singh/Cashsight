@@ -6,7 +6,7 @@ import { useCurrency } from '../context/CurrencyContext';
  * AddTransactionModal — Immersive Ledger Entry
  * Fully responsive: mobile (≤640px), tablet (641-1023px), desktop (≥1024px)
  */
-export default function AddTransactionModal({ isOpen, onClose, onSubmit }) {
+export default function AddTransactionModal({ isOpen, onClose, onSubmit, transaction }) {
   const { currencySymbol } = useCurrency();
   const [amount, setAmount]                   = useState('');
   const [type, setType]                       = useState('expense');
@@ -61,11 +61,56 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit }) {
   /* ── Reset on open ── */
   useEffect(() => {
     if (isOpen) {
-      setAmount(''); setType('expense'); setSelectedCategory('Shopping');
-      setCustomCategory(''); setShowCustomCategory(false);
-      setReference(''); setNarrative(''); setSubmitting(false);
+      if (transaction) {
+        setAmount(transaction.amount ? Math.abs(transaction.amount).toString() : '');
+        setType(transaction.type || 'expense');
+        
+        // Match category
+        const catLabel = transaction.category || 'SHOPPING';
+        const matched = categories.find(c => c.label.toUpperCase() === catLabel.toUpperCase());
+        if (matched) {
+          setSelectedCategory(matched.label);
+          setShowCustomCategory(false);
+          setCustomCategory('');
+        } else {
+          setSelectedCategory('Other');
+          setShowCustomCategory(true);
+          setCustomCategory(catLabel);
+        }
+        
+        // Parse date to YYYY-MM-DDTHH:MM
+        const parseDate = (dateVal) => {
+          const d = new Date(dateVal);
+          if (isNaN(d.getTime())) {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+          }
+          const pad = (n) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        setDate(parseDate(transaction.date));
+        
+        // Map description to reference
+        setReference(transaction.description || '');
+        setNarrative('');
+        setSubmitting(false);
+      } else {
+        // Add Mode
+        setAmount('');
+        setType('expense');
+        setSelectedCategory('Shopping');
+        setCustomCategory('');
+        setShowCustomCategory(false);
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        setDate(`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`);
+        setReference('');
+        setNarrative('');
+        setSubmitting(false);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, transaction]);
 
   /* ── ESC close ── */
   useEffect(() => {
@@ -307,10 +352,10 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit }) {
               <div>
                 <h3 className="font-bold text-white tracking-tight leading-tight"
                   style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)', fontFamily: 'Outfit, sans-serif' }}>
-                  New Entry
+                  {transaction ? 'Edit Entry' : 'New Entry'}
                 </h3>
                 <p className="text-xs opacity-55 mt-0.5" style={{ color: '#bbcac0' }}>
-                  Authorize a movement of capital.
+                  {transaction ? 'Modify the ledger record.' : 'Authorize a movement of capital.'}
                 </p>
               </div>
               <button onClick={onClose} aria-label="Close"
@@ -470,7 +515,9 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit }) {
                 <button type="submit" id="ledger-commit-btn"
                   className="lm-btn-commit"
                   disabled={isDisabled}>
-                  {submitting ? 'COMMITTING…' : 'COMMIT TRANSACTION'}
+                  {submitting
+                    ? (transaction ? 'UPDATING…' : 'COMMITTING…')
+                    : (transaction ? 'UPDATE TRANSACTION' : 'COMMIT TRANSACTION')}
                 </button>
               </div>
 

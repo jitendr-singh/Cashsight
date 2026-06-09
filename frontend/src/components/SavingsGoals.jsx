@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { savingsService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function SavingsGoals({ goals, onRefresh }) {
+export default function SavingsGoals({ goals, onRefresh, onViewAll }) {
   const { formatCurrency, currencySymbol } = useCurrency();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showFundModal, setShowFundModal] = useState(false);
@@ -134,7 +134,10 @@ export default function SavingsGoals({ goals, onRefresh }) {
       </div>
 
       <div className="mt-8 pt-6 border-t border-glass-border">
-        <button className="w-full py-2.5 border border-primary/20 hover:bg-primary/5 text-primary rounded-lg transition-colors font-bold text-sm">
+        <button 
+          onClick={onViewAll}
+          className="w-full py-2.5 border border-primary/20 hover:bg-primary/5 text-primary rounded-lg transition-colors font-bold text-sm cursor-pointer"
+        >
           View All Milestones
         </button>
       </div>
