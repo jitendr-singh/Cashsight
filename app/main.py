@@ -23,32 +23,6 @@ logger = logging.getLogger(__name__)
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-def seed_default_user():
-    from app.config.database import SessionLocal
-    from app.models.user import User
-    from app.utils.security import get_password_hash
-
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.email == "executive@capitallens.com").first()
-        if not user:
-            logger.info("Creating default executive guest user...")
-            new_user = User(
-                email="executive@capitallens.com",
-                name="Executive Officer",
-                password_hash=get_password_hash("password")
-            )
-            db.add(new_user)
-            db.commit()
-            logger.info("Default executive guest user created successfully.")
-    except Exception as e:
-        logger.error(f"Failed to seed default user: {e}")
-        db.rollback()
-    finally:
-        db.close()
-
-seed_default_user()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Capitallens API")
@@ -61,12 +35,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+origins = [orig.strip() for orig in settings.CORS_ORIGINS.split(",") if orig.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(transactions_router, prefix="/api/v1")

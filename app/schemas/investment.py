@@ -27,6 +27,8 @@ class InvestmentCreate(BaseModel):
     appreciation_rate: Optional[float] = None
 
 class InvestmentUpdate(BaseModel):
+    asset_name: Optional[str] = None
+    amount_invested: Optional[float] = None
     current_value: Optional[float] = None
     quantity: Optional[float] = None
     buy_price: Optional[float] = None

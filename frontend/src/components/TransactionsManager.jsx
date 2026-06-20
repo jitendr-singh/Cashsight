@@ -3,7 +3,7 @@ import { transactionService, analyticsService } from '../services/api';
 import AddTransactionModal from './AddTransactionModal';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function TransactionsManager() {
+export default function TransactionsManager({ searchQuery }) {
   const { formatCurrency, currencySymbol } = useCurrency();
   const [transactions, setTransactions] = useState([]);
   const [summaryData, setSummaryData] = useState(null);
@@ -215,9 +215,23 @@ export default function TransactionsManager() {
   // Filter list locally in React
   const filteredTransactions = transactions.filter(t => {
     const matchTab = activeFilter === 'All' || t.type === activeFilter.toLowerCase();
-    const matchSearch = t.category.toLowerCase().includes(searchCategory.toLowerCase()) ||
-                        t.description.toLowerCase().includes(searchCategory.toLowerCase());
-    return matchTab && matchSearch;
+    
+    // Support both local filter (searchCategory) and global topbar search (searchQuery)
+    const qLocal = searchCategory.toLowerCase().trim();
+    const qGlobal = searchQuery ? searchQuery.toLowerCase().trim() : '';
+    
+    const matchesQuery = (q) => {
+      if (!q) return true;
+      return (
+        t.category.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q) ||
+        (t.payment_type || '').toLowerCase().includes(q) ||
+        t.amount.toString().includes(q) ||
+        t.date.toLowerCase().includes(q)
+      );
+    };
+    
+    return matchTab && matchesQuery(qLocal) && matchesQuery(qGlobal);
   });
 
   // Pagination maths

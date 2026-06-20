@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { aiChatService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function ChatAssistant({ activeTab, setActiveTab }) {
+export default function ChatAssistant({ activeTab, setActiveTab, isOpen: externalIsOpen, setIsOpen: externalSetIsOpen }) {
   const { user } = useAuth();
   const storageKey = `capitallens_chat_history_${user?.id || 'guest'}`;
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [localIsOpen, setLocalIsOpen] = useState(false);
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : localIsOpen;
+  const setIsOpen = externalSetIsOpen !== undefined ? externalSetIsOpen : setLocalIsOpen;
   const [zoomType, setZoomType] = useState(null); // 'chart' | 'table' | null
   const [zoomData, setZoomData] = useState(null);
   
@@ -23,7 +25,7 @@ export default function ChatAssistant({ activeTab, setActiveTab }) {
     return [
       {
         role: 'assistant',
-        content: 'Hello! Main aapka Capitallens AI Advisor hoon. Main aapke portfolio, active savings goals aur expense analytics ka use karke suggestions de sakta hoon. \n\nAap kisi bhi tab (Dashboard, Savings, Analytics, Investments) ke baare me sawaal pooch sakte hain. Kaise madad karu aapki? [action:navigate:analytics:View Spending Trends]'
+        content: "Hello! I'm your **Capitallens AI Advisor**. I can analyze your portfolio, savings goals, and expense data to give you personalized suggestions.\n\nYou can ask me about any section (Dashboard, Savings, Analytics, Investments). How can I help you today? [action:navigate:analytics:View Spending Trends]"
       }
     ];
   });
@@ -34,9 +36,10 @@ export default function ChatAssistant({ activeTab, setActiveTab }) {
 
   const messageEndRef = useRef(null);
 
-  // Sync messages with localStorage whenever they change
+  // Sync messages with localStorage whenever they change (cap at 50 to avoid quota errors)
   useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(messages));
+    const capped = messages.slice(-50);
+    localStorage.setItem(storageKey, JSON.stringify(capped));
   }, [messages, storageKey]);
 
   // Escape keyboard shortcut
@@ -59,7 +62,7 @@ export default function ChatAssistant({ activeTab, setActiveTab }) {
     const defaultMsg = [
       {
         role: 'assistant',
-        content: 'Hello! Main aapka Capitallens AI Advisor hoon. Main aapke portfolio, active savings goals aur expense analytics ka use karke suggestions de sakta hoon. \n\nAap kisi bhi tab (Dashboard, Savings, Analytics, Investments) ke baare me sawaal pooch sakte hain. Kaise madad karu aapki? [action:navigate:analytics:View Spending Trends]'
+        content: "Hello! I'm your **Capitallens AI Advisor**. I can analyze your portfolio, savings goals, and expense data to give you personalized suggestions.\n\nYou can ask me about any section (Dashboard, Savings, Analytics, Investments). How can I help you today? [action:navigate:analytics:View Spending Trends]"
       }
     ];
     setMessages(defaultMsg);
@@ -242,7 +245,35 @@ export default function ChatAssistant({ activeTab, setActiveTab }) {
       <div className="space-y-2 leading-relaxed whitespace-pre-line text-xs md:text-sm font-medium">
         {parts.map((part, idx) => {
           if (part.type === 'text') {
-            return <span key={idx}>{part.content}</span>;
+            // Render simple markdown: **bold**, *italic*, \n line breaks
+            const renderMarkdownText = (raw) => {
+              const lines = raw.split('\n');
+              return lines.map((line, li) => {
+                // Split on **bold** and *italic*
+                const segments = [];
+                const mdRegex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+                let last = 0;
+                let m;
+                while ((m = mdRegex.exec(line)) !== null) {
+                  if (m.index > last) segments.push({ t: 'plain', v: line.slice(last, m.index) });
+                  if (m[0].startsWith('**')) segments.push({ t: 'bold', v: m[0].slice(2, -2) });
+                  else segments.push({ t: 'italic', v: m[0].slice(1, -1) });
+                  last = mdRegex.lastIndex;
+                }
+                if (last < line.length) segments.push({ t: 'plain', v: line.slice(last) });
+                return (
+                  <span key={li}>
+                    {segments.map((s, si) =>
+                      s.t === 'bold' ? <strong key={si} className="font-bold text-text-primary">{s.v}</strong>
+                      : s.t === 'italic' ? <em key={si} className="italic">{s.v}</em>
+                      : <span key={si}>{s.v}</span>
+                    )}
+                    {li < lines.length - 1 && <br />}
+                  </span>
+                );
+              });
+            };
+            return <span key={idx}>{renderMarkdownText(part.content)}</span>;
           } else if (part.type === 'action') {
             return (
               <span key={idx} className="block mt-1">
@@ -365,8 +396,8 @@ export default function ChatAssistant({ activeTab, setActiveTab }) {
               <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
               <div>
                 <h4 className="text-xs md:text-sm font-bold text-text-primary font-headline">AI Command Advisor</h4>
-                <p className="text-[10px] text-on-surface-variant/70 uppercase font-bold tracking-wider">
-                  Scope: {activeTab}
+                <p className="text-[10px] text-on-surface-variant/70 font-semibold tracking-wider">
+                  Context: {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
                 </p>
               </div>
             </div>

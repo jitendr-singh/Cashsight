@@ -74,7 +74,7 @@ export default function LandingPage({ onEnterConsole }) {
           </h2>
           
           <p className="text-on-surface-variant/80 text-sm sm:text-base max-w-xl leading-relaxed">
-            Unify portfolio management, live tracking, and SEBI-aligned intelligent investment advisory. Let Gemini 2.5 Flash run target-driven optimization logic for your active cash reserves.
+            Unify portfolio management, live tracking, and SEBI-aligned intelligent investment advisory. Let Gemini 2.0 / 3.1 Flash run target-driven optimization logic for your active cash reserves.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
@@ -233,7 +233,7 @@ export default function LandingPage({ onEnterConsole }) {
           <div className="p-6 rounded-2xl border border-glass-border/30 bg-gradient-to-b from-[#0a0d16] to-[#04060b] flex flex-col justify-between hover:shadow-[0_8px_32px_rgba(0,196,154,0.05)] hover:border-primary/20 transition-all group">
             <div className="space-y-3">
               <span className="material-symbols-outlined text-primary text-[32px] p-2 bg-primary/10 rounded-xl">chat_bubble</span>
-              <h3 className="font-bold text-base text-text-primary">Gemini 2.5 Chat Advisor</h3>
+              <h3 className="font-bold text-base text-text-primary">Gemini 2.0 / 3.1 Chat Advisor</h3>
               <p className="text-xs text-on-surface-variant/80 leading-relaxed">
                 Interact with the model regarding your savings rate, budget leaks, and historical spending data. Powered by high-speed Google AI services.
               </p>

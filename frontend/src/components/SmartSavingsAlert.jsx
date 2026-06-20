@@ -13,7 +13,14 @@ export default function SmartSavingsAlert({ summaryData, goals, onRefresh }) {
   const availableCash = summaryData.available_cash ?? (totalSavings - lockedSavings);
 
   const activeGoals = goals.filter(g => !g.is_completed);
-  const fundableGoals = goals.filter(g => !g.is_completed && g.saved_amount < g.target_amount);
+  // Deduplicate by ID to prevent same goal appearing multiple times in suggestions
+  const fundableGoals = Array.from(
+    new Map(
+      goals
+        .filter(g => !g.is_completed && g.saved_amount < g.target_amount)
+        .map(g => [g.id, g])
+    ).values()
+  );
   const goalsWithFunds = goals.filter(g => g.saved_amount > 0);
 
   // Case 1: Overdraft warning (Available Cash is negative)

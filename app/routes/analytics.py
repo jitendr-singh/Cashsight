@@ -158,28 +158,41 @@ async def get_summary(
 
 @router.get("/analytics/by-category")
 async def get_by_category(
+    scope: Optional[str] = Query("month", description="Data scope: 'month' (current month) or 'all' (all-time)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    now = datetime.utcnow()
+    this_month_start = datetime(now.year, now.month, 1)
+
+    # Build date filter based on scope
+    date_filters_exp = [
+        Transaction.user_id == current_user.id,
+        Transaction.type == TransactionType.expense,
+    ]
+    date_filters_inc = [
+        Transaction.user_id == current_user.id,
+        Transaction.type == TransactionType.income,
+    ]
+
+    if scope == "month":
+        date_filters_exp.append(Transaction.date >= this_month_start)
+        date_filters_inc.append(Transaction.date >= this_month_start)
+
     # Expenses by category
     expense_by_category = db.query(
         Transaction.category,
         func.sum(Transaction.amount).label("total")
-    ).filter(
-        Transaction.user_id == current_user.id,
-        Transaction.type == TransactionType.expense
-    ).group_by(Transaction.category).all()
+    ).filter(*date_filters_exp).group_by(Transaction.category).all()
 
     # Income by category
     income_by_category = db.query(
         Transaction.category,
         func.sum(Transaction.amount).label("total")
-    ).filter(
-        Transaction.user_id == current_user.id,
-        Transaction.type == TransactionType.income
-    ).group_by(Transaction.category).all()
+    ).filter(*date_filters_inc).group_by(Transaction.category).all()
 
     return {
+        "scope": scope,
         "expense_by_category": [
             {"category": row.category, "amount": row.total}
             for row in expense_by_category

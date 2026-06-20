@@ -25,6 +25,7 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
   const particleContainerRef  = useRef(null);
   const particlesInitialized  = useRef(false);
   const backdropRef           = useRef(null);
+  const [formError, setFormError] = useState('');
 
   const categories = [
     { label: 'Shopping',  icon: 'shopping_cart' },
@@ -91,9 +92,9 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
         };
         setDate(parseDate(transaction.date));
         
-        // Map description to reference
-        setReference(transaction.description || '');
-        setNarrative('');
+        // Map description to narrative (required description field)
+        setReference('');
+        setNarrative(transaction.description || '');
         setSubmitting(false);
       } else {
         // Add Mode
@@ -127,30 +128,41 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
     if (!cat.isOther) setCustomCategory('');
   };
 
+  const isDisabled = submitting || !amount || parseFloat(amount) <= 0;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) <= 0) return;
+    setFormError('');
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      setFormError('Amount must be greater than zero.');
+      return;
+    }
     const finalCat = showCustomCategory && customCategory
       ? customCategory.toUpperCase()
       : selectedCategory.toUpperCase();
+    const desc = reference.trim() || narrative.trim();
+    if (!desc) {
+      setFormError('Please enter a description or note for this transaction.');
+      return;
+    }
     setSubmitting(true);
     try {
       await onSubmit({
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         type,
         category: finalCat,
-        description: reference || narrative || `${finalCat} transaction`,
+        description: desc,
         date: date ? new Date(date).toISOString() : new Date().toISOString(),
       });
       onClose();
     } catch (err) {
       console.error('Failed to commit transaction', err);
+      setFormError('Failed to save transaction. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
-
-  const isDisabled = submitting || !amount || parseFloat(amount) <= 0;
 
   return createPortal(
     <>
@@ -352,10 +364,10 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
               <div>
                 <h3 className="font-bold text-white tracking-tight leading-tight"
                   style={{ fontSize: 'clamp(1.25rem, 4vw, 1.75rem)', fontFamily: 'Outfit, sans-serif' }}>
-                  {transaction ? 'Edit Entry' : 'New Entry'}
+                  {transaction ? 'Edit Transaction' : 'Add Transaction'}
                 </h3>
                 <p className="text-xs opacity-55 mt-0.5" style={{ color: '#bbcac0' }}>
-                  {transaction ? 'Modify the ledger record.' : 'Authorize a movement of capital.'}
+                  {transaction ? 'Update the transaction record.' : 'Record a new transaction.'}
                 </p>
               </div>
               <button onClick={onClose} aria-label="Close"
@@ -424,7 +436,7 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
               <div>
                 <span className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-2"
                   style={{ color: 'rgba(187,202,192,0.65)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  Select Sphere
+                  Category <span style={{ color: '#fb7185' }}>*</span>
                 </span>
                 <div className="grid grid-cols-6 gap-1.5 sm:gap-2">
                   {categories.map((cat) => {
@@ -450,7 +462,7 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
                 <div className={`lm-custom-wrap ${showCustomCategory ? 'open' : ''}`}>
                   <label className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-1.5"
                     style={{ color: 'rgba(187,202,192,0.65)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    Custom Sphere Name
+                    Custom Category Name
                   </label>
                   <input type="text" className="lm-input"
                     value={customCategory}
@@ -463,9 +475,9 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
               {/* ── Date & Reference ── */}
               <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-1.5"
+                   <label className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-1.5"
                     style={{ color: 'rgba(187,202,192,0.65)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    Timestamp
+                    Date & Time
                   </label>
                   <div className="relative">
                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10"
@@ -481,12 +493,12 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
                 <div>
                   <label className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-1.5"
                     style={{ color: 'rgba(187,202,192,0.65)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    Reference
+                    Notes
                   </label>
                   <input type="text" className="lm-input"
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
-                    placeholder="Note..." />
+                    placeholder="Optional note or reference..." />
                 </div>
               </div>
 
@@ -494,12 +506,12 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
               <div>
                 <label className="block text-[9px] font-bold tracking-[0.18em] uppercase mb-1.5"
                   style={{ color: 'rgba(187,202,192,0.65)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  Narrative
+                  Description <span style={{ color: '#fb7185' }}>*</span>
                 </label>
                 <textarea className="lm-input resize-none"
                   value={narrative}
                   onChange={(e) => setNarrative(e.target.value)}
-                  placeholder="Contextual details for this transaction..."
+                  placeholder="e.g. Grocery run at DMart, Monthly rent payment..."
                   rows={2}
                   style={{
                     borderRadius: '0.75rem',
@@ -507,17 +519,25 @@ export default function AddTransactionModal({ isOpen, onClose, onSubmit, transac
                   }} />
               </div>
 
+              {/* Inline form error */}
+              {formError && (
+                <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[14px]">warning</span>
+                  {formError}
+                </div>
+              )}
+
               {/* ── Actions ── */}
               <div className="flex items-stretch gap-3 pt-0.5">
                 <button type="button" className="lm-btn-abort" onClick={onClose}>
-                  ABORT
+                  Cancel
                 </button>
                 <button type="submit" id="ledger-commit-btn"
                   className="lm-btn-commit"
                   disabled={isDisabled}>
                   {submitting
-                    ? (transaction ? 'UPDATING…' : 'COMMITTING…')
-                    : (transaction ? 'UPDATE TRANSACTION' : 'COMMIT TRANSACTION')}
+                    ? (transaction ? 'Updating...' : 'Saving...')
+                    : (transaction ? 'Update Transaction' : 'Save Transaction')}
                 </button>
               </div>
 

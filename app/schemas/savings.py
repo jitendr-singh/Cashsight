@@ -1,20 +1,20 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
 class SavingsGoalCreate(BaseModel):
     title: str
-    target_amount: float
-    saved_amount: Optional[float] = 0.0
-    monthly_contribution: Optional[float] = 0.0
+    target_amount: float = Field(gt=0, description="Target amount must be greater than zero")
+    saved_amount: Optional[float] = Field(0.0, ge=0, description="Saved amount cannot be negative")
+    monthly_contribution: Optional[float] = Field(0.0, ge=0, description="Monthly contribution cannot be negative")
     deadline: Optional[datetime] = None
     icon: Optional[str] = "🎯"
 
 class SavingsGoalUpdate(BaseModel):
     title: Optional[str] = None
-    target_amount: Optional[float] = None
-    saved_amount: Optional[float] = None
-    monthly_contribution: Optional[float] = None
+    target_amount: Optional[float] = Field(None, gt=0, description="Target amount must be greater than zero")
+    saved_amount: Optional[float] = Field(None, ge=0, description="Saved amount cannot be negative")
+    monthly_contribution: Optional[float] = Field(None, ge=0, description="Monthly contribution cannot be negative")
     deadline: Optional[datetime] = None
     icon: Optional[str] = None
     is_completed: Optional[bool] = None

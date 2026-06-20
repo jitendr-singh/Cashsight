@@ -32,8 +32,12 @@ def calculate_progress(goal: SavingsGoal) -> dict:
     if goal.deadline:
         now = datetime.utcnow()
         if goal.deadline > now:
-            diff = goal.deadline - now
-            months_remaining = max(0, int(diff.days / 30))
+            years_diff = goal.deadline.year - now.year
+            months_diff = goal.deadline.month - now.month
+            total_months = years_diff * 12 + months_diff
+            if goal.deadline.day < now.day:
+                total_months -= 1
+            months_remaining = max(0, total_months)
 
     # Amount remaining
     amount_remaining = max(0, goal.target_amount - goal.saved_amount)
@@ -166,6 +170,12 @@ async def add_money_to_goal(
             detail="Savings goal not found"
         )
 
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Deposit amount must be greater than zero."
+        )
+
     # Calculate actual added amount (cannot exceed target amount cap)
     actual_added = amount
     if goal.saved_amount + amount >= goal.target_amount:
@@ -218,6 +228,12 @@ async def withdraw_money_from_goal(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Savings goal not found"
+        )
+
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Withdrawal amount must be greater than zero."
         )
 
     # Calculate actual withdrawable (cap at what is currently saved)

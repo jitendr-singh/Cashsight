@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import List
+from datetime import datetime
 
 from app.config.database import get_db
 from app.routes.auth import get_current_user
@@ -46,7 +47,27 @@ async def chat_with_advisor(
 
     total_savings = total_income - total_expense
     savings_rate = (total_savings / total_income * 100) if total_income > 0 else 0.0
-    runway_months = (total_savings / total_expense) if total_expense > 0 else 0.0
+
+    # Calculate average monthly expense (burn rate) for runway calculations
+    now = datetime.utcnow()
+    first_txn_date = db.query(func.min(Transaction.date)).filter(
+        Transaction.user_id == current_user.id
+    ).scalar()
+    if first_txn_date:
+        months_diff = (now.year - first_txn_date.year) * 12 + (now.month - first_txn_date.month) + 1
+        avg_monthly_exp = total_expense / max(months_diff, 1)
+    else:
+        avg_monthly_exp = 0.0
+
+    this_month_start = datetime(now.year, now.month, 1)
+    this_month_exp = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.type == TransactionType.expense,
+        Transaction.date >= this_month_start
+    ).scalar() or 0.0
+
+    monthly_expense = this_month_exp if this_month_exp > 0 else avg_monthly_exp
+    runway_months = (total_savings / monthly_expense) if monthly_expense > 0 else (99.0 if total_savings > 0 else 0.0)
 
     # 2. Fetch active investments
     investments = db.query(Investment).filter(

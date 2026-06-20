@@ -29,7 +29,7 @@ def generate_investment_suggestions(
             runway_months, risk_score, risk_profile, emergency_target, emergency_gap, portfolio_warnings
         )
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
     
     prompt = f"""
     You are a professional financial planner. Based on the user's financial profile, suggest EXACTLY 3 investment recommendations:
@@ -77,7 +77,10 @@ def generate_investment_suggestions(
     Respond ONLY with the raw JSON array. Do not include markdown formatting, backticks, or any conversational text.
     """
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": settings.GEMINI_API_KEY
+    }
     payload = {
         "contents": [{
             "parts": [{"text": prompt}]

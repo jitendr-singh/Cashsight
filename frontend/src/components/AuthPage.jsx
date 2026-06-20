@@ -3,25 +3,18 @@ import { useAuth } from '../context/AuthContext';
 
 export default function AuthPage({ onBackToLanding }) {
   const { login, register } = useAuth();
-  
+
   // Tab states: 'login' | 'signup'
   const [isLogin, setIsLogin] = useState(true);
-  
+
   // Form input states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+
   // Status states
   const [errorMsg, setErrorMsg] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
-
-  // Auto-fill developer credentials shortcut
-  const handleAutofillDev = () => {
-    setEmail('executive@capitallens.com');
-    setPassword('password');
-    setErrorMsg(null);
-  };
 
   // Submit Handler
   const handleSubmit = async (e) => {
@@ -37,9 +30,15 @@ export default function AuthPage({ onBackToLanding }) {
       setErrorMsg('Please enter your full name to create an account.');
       return;
     }
-    if (password.length < 6) {
-      setErrorMsg('Password must be at least 6 characters long.');
-      return;
+    if (!isLogin) {
+      if (password.length < 8) {
+        setErrorMsg('Password must be at least 8 characters long.');
+        return;
+      }
+      if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+        setErrorMsg('Password must contain at least one uppercase letter, one lowercase letter, and one number.');
+        return;
+      }
     }
 
     setAuthLoading(true);
@@ -51,13 +50,15 @@ export default function AuthPage({ onBackToLanding }) {
       }
     } catch (err) {
       console.error('Authentication request failed:', err);
-      // Clean and friendly display messages
-      if (err.message?.includes('401') || err.message?.toLowerCase().includes('credential')) {
-        setErrorMsg('Invalid login details. Please verify your email and password.');
-      } else if (err.message?.includes('400') || err.message?.toLowerCase().includes('already')) {
-        setErrorMsg('This email address is already registered.');
+      const msg = err.message || '';
+      if (msg.includes('Invalid credentials') || msg.includes('401') || msg.toLowerCase().includes('credential')) {
+        setErrorMsg('Incorrect email or password. Please try again.');
+      } else if (msg.includes('already registered') || msg.includes('400')) {
+        setErrorMsg('This email address is already registered. Please sign in instead.');
+      } else if (msg.includes('timed out') || msg.includes('Connection')) {
+        setErrorMsg('Could not connect to server. Please ensure the backend is running.');
       } else {
-        setErrorMsg('Connection refused. Ensure the backend server is running on port 8000.');
+        setErrorMsg(msg || 'Something went wrong. Please try again.');
       }
     } finally {
       setAuthLoading(false);
@@ -66,7 +67,7 @@ export default function AuthPage({ onBackToLanding }) {
 
   return (
     <div className="min-h-screen w-screen bg-[#030712] text-[#dde2f3] flex flex-col items-center justify-center p-4 relative overflow-hidden font-body-base">
-      
+
       {/* Ambient background glows */}
       <div className="fixed inset-0 scanning-grid pointer-events-none z-0"></div>
       <div className="ambient-orb bg-primary w-[300px] sm:w-[450px] h-[300px] sm:h-[450px] -top-20 -left-20 sm:-top-32 sm:-left-32 opacity-20"></div>
@@ -74,7 +75,7 @@ export default function AuthPage({ onBackToLanding }) {
 
       {/* Main Glassmorphic Auth Card */}
       <div className="w-full max-w-md midnight-glass border border-glass-border/30 rounded-2xl shadow-2xl p-8 space-y-6 relative z-10 transition-all">
-        
+
         {/* Back button */}
         {onBackToLanding && (
           <button
@@ -82,6 +83,7 @@ export default function AuthPage({ onBackToLanding }) {
             onClick={onBackToLanding}
             className="absolute top-4 left-4 p-1.5 text-on-surface-variant/70 hover:text-primary rounded-lg hover:bg-surface-variant/20 transition-all cursor-pointer flex items-center justify-center"
             title="Back to Landing Page"
+            aria-label="Back to Landing Page"
           >
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           </button>
@@ -98,7 +100,7 @@ export default function AuthPage({ onBackToLanding }) {
             </h1>
           </div>
           <p className="text-on-surface-variant/80 text-xs uppercase tracking-widest font-bold">
-            Midnight Wealth Console
+            Personal Finance Dashboard
           </p>
         </div>
 
@@ -111,14 +113,14 @@ export default function AuthPage({ onBackToLanding }) {
               setErrorMsg(null);
             }}
             className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              isLogin 
-                ? 'bg-primary text-on-primary shadow-md shadow-primary/10' 
+              isLogin
+                ? 'bg-primary text-on-primary shadow-md shadow-primary/10'
                 : 'text-on-surface-variant hover:text-text-primary'
             }`}
           >
-            Access Vault
+            Sign In
           </button>
-          
+
           <button
             type="button"
             onClick={() => {
@@ -126,12 +128,12 @@ export default function AuthPage({ onBackToLanding }) {
               setErrorMsg(null);
             }}
             className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              !isLogin 
-                ? 'bg-primary text-on-primary shadow-md shadow-primary/10' 
+              !isLogin
+                ? 'bg-primary text-on-primary shadow-md shadow-primary/10'
                 : 'text-on-surface-variant hover:text-text-primary'
             }`}
           >
-            Create Console
+            Create Account
           </button>
         </div>
 
@@ -147,11 +149,11 @@ export default function AuthPage({ onBackToLanding }) {
 
         {/* Input Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          
+
           {/* Full Name Input (Register Only) */}
           {!isLogin && (
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
+              <label htmlFor="auth-name" className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
                 Full Name
               </label>
               <div className="relative">
@@ -159,8 +161,9 @@ export default function AuthPage({ onBackToLanding }) {
                   person
                 </span>
                 <input
+                  id="auth-name"
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder="Enter your full name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full bg-[#05070f] border border-glass-border rounded-xl pl-10 pr-4 py-3 text-xs md:text-sm font-medium text-text-primary outline-none focus:border-primary/70 transition-all font-body placeholder:text-on-surface-variant/40"
@@ -172,7 +175,7 @@ export default function AuthPage({ onBackToLanding }) {
 
           {/* Email Address Input */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
+            <label htmlFor="auth-email" className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
               Email Address
             </label>
             <div className="relative">
@@ -180,10 +183,12 @@ export default function AuthPage({ onBackToLanding }) {
                 alternate_email
               </span>
               <input
+                id="auth-email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 className="w-full bg-[#05070f] border border-glass-border rounded-xl pl-10 pr-4 py-3 text-xs md:text-sm font-medium text-text-primary outline-none focus:border-primary/70 transition-all font-body placeholder:text-on-surface-variant/40"
                 required
               />
@@ -192,23 +197,38 @@ export default function AuthPage({ onBackToLanding }) {
 
           {/* Password Input */}
           <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
-              Secret Passphrase
+            <label htmlFor="auth-password" className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant">
+              Password
             </label>
             <div className="relative">
               <span className="material-symbols-outlined absolute left-3.5 top-3.5 text-on-surface-variant/70 text-[18px]">
                 lock
               </span>
               <input
+                id="auth-password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
                 className="w-full bg-[#05070f] border border-glass-border rounded-xl pl-10 pr-4 py-3 text-xs md:text-sm font-medium text-text-primary outline-none focus:border-primary/70 transition-all font-body placeholder:text-on-surface-variant/40"
                 required
               />
             </div>
           </div>
+
+          {/* Forgot Password (Login only) */}
+          {isLogin && (
+            <div className="text-right">
+              <button
+                type="button"
+                className="text-[10px] text-primary/70 hover:text-primary transition-all underline decoration-dotted cursor-pointer"
+                onClick={() => setErrorMsg('Password reset is coming soon. Please contact support.')}
+              >
+                Forgot Password?
+              </button>
+            </div>
+          )}
 
           {/* Action Submit Button */}
           <button
@@ -219,29 +239,16 @@ export default function AuthPage({ onBackToLanding }) {
             {authLoading ? (
               <>
                 <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
-                <span>Unlocking Console...</span>
+                <span>{isLogin ? 'Signing in...' : 'Creating account...'}</span>
               </>
             ) : (
               <>
-                <span className="material-symbols-outlined text-[18px]">vpn_key</span>
-                <span>{isLogin ? 'Unlock Console' : 'Initialize Console'}</span>
+                <span className="material-symbols-outlined text-[18px]">{isLogin ? 'login' : 'person_add'}</span>
+                <span>{isLogin ? 'Sign In' : 'Create Account'}</span>
               </>
             )}
           </button>
         </form>
-
-        {/* Developer credentials shortcut wrapper */}
-        {isLogin && (
-          <div className="pt-2 text-center">
-            <button
-              onClick={handleAutofillDev}
-              type="button"
-              className="text-[10px] text-primary/70 hover:text-primary transition-all underline decoration-dotted cursor-pointer"
-            >
-              Autofill Developer Test Credentials
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

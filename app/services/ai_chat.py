@@ -1,6 +1,7 @@
 import requests
 import json
 import logging
+import re
 from app.config.settings import settings
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -10,6 +11,17 @@ from app.models.savings import SavingsGoal
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+def sanitize_pii(text: str) -> str:
+    if not text:
+        return ""
+    # Mask Emails
+    text = re.sub(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', '[EMAIL]', text)
+    # Mask Phone Numbers
+    text = re.sub(r'\+?\d[\d -]{8,12}\d', '[PHONE]', text)
+    # Mask Bank Accounts / Card Numbers
+    text = re.sub(r'\b\d{9,18}\b', '[ACCOUNT_NO]', text)
+    return text
 
 def generate_chat_response(
     query: str,
@@ -23,11 +35,21 @@ def generate_chat_response(
     Sends contextual prompt containing user profile data and active tab guidelines
     to Gemini API, returning the formatted chatbot response.
     """
+    # Sanitize transaction descriptions for PII masking before sending to AI
+    if 'transactions' in financial_data:
+        sanitized_txns = []
+        for txn in financial_data['transactions']:
+            txn_copy = txn.copy()
+            if 'description' in txn_copy and txn_copy['description']:
+                txn_copy['description'] = sanitize_pii(txn_copy['description'])
+            sanitized_txns.append(txn_copy)
+        financial_data['transactions'] = sanitized_txns
+
     if not settings.GEMINI_API_KEY:
         logger.warning("GEMINI_API_KEY is not set. Chatbot fallback triggered.")
         return generate_local_fallback_response(query, active_tab, financial_data, db, user_id)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={settings.GEMINI_API_KEY}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent"
 
     # Section-specific context instructions
     tab_guidelines = {
@@ -62,7 +84,7 @@ def generate_chat_response(
     {tab_instruction}
 
     User Financial Snapshot:
-    - Monthly Income: ₹{financial_data.get('total_income', 0.0):,.2f}
+    - Total All-time Income: ₹{financial_data.get('total_income', 0.0):,.2f}
     - Monthly Expenses: ₹{financial_data.get('total_expense', 0.0):,.2f}
     - Net Savings: ₹{financial_data.get('total_savings', 0.0):,.2f}
     - Savings Rate: {financial_data.get('savings_rate', 0.0):.1f}%
@@ -119,7 +141,10 @@ def generate_chat_response(
         }
     }
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "x-goog-api-key": settings.GEMINI_API_KEY
+    }
 
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=25)
@@ -254,11 +279,11 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
     # Greeting queries fallback
     if query_lower.strip() in ["hi", "hello", "hey", "hola", "namaste", "pranam"]:
         return (
-            "Hello! Main aapka Capitallens AI Advisor hoon. Main aapke portfolio, active savings goals aur expense analytics ka use karke suggestions de sakta hoon. "
-            "Aap kis section ke details discuss karna chahte hain? \n"
-            "• [action:navigate:analytics:Open Analytics]\n"
-            "• [action:navigate:savings:Open Savings]\n"
-            "• [action:navigate:investments:Open Investments]"
+            "Hello! I'm your **Capitallens AI Advisor**. I can analyze your portfolio, savings goals, and expense data to give you personalized suggestions. \n"
+            "What would you like to explore today? \n"
+            "\u2022 [action:navigate:analytics:View Analytics]\n"
+            "\u2022 [action:navigate:savings:View Savings Goals]\n"
+            "\u2022 [action:navigate:investments:View Investments]"
             + disclaimer
         )
 
@@ -372,12 +397,12 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
         return (
             f"### Executive Financial Summary\n"
             f"Aapki current financial health breakdown niche diya gaya hai:\n\n"
-            f"• **Monthly Income**: ₹{income:,.2f}\n"
-            f"• **Monthly Expenses**: ₹{expense:,.2f}\n"
-            f"• **Net Savings**: ₹{savings:,.2f}\n"
-            f"• **Savings Rate**: {savings_rate:.1f}% (Recommended: 30%+)\n"
-            f"• **Runway**: {runway:.1f} months\n"
-            f"• **Total Capital Staged in Investments**: ₹{invested:,.2f}\n\n"
+            f"\u2022 **Monthly Income**: ₹{income:,.2f}\n"
+            f"\u2022 **Monthly Expenses**: ₹{expense:,.2f}\n"
+            f"\u2022 **Net Savings**: ₹{savings:,.2f}\n"
+            f"\u2022 **Savings Rate**: {savings_rate:.1f}% (Recommended: 30%+)\n"
+            f"\u2022 **Runway**: {runway:.1f} months\n"
+            f"\u2022 **Total Capital Staged in Investments**: ₹{invested:,.2f}\n\n"
             f"Aapki savings rate stable hai. Analytics section me deep insights check karein: [action:navigate:analytics:Open Analytics Tab]"
             + disclaimer
         )
@@ -386,9 +411,9 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
     if "/savings" in query_lower or "savings" in query_lower or "goal" in query_lower:
         goal_text = ""
         if goals:
-            goal_text = "\n".join([f"• **{g['title']}**: [progress:{g['title']}:{int(g['progress_percentage'])}]" for g in goals])
+            goal_text = "\n".join([f"\u2022 **{g['title']}**: [progress:{g['title']}:{int(g['progress_percentage'])}]" for g in goals])
         else:
-            goal_text = "• Koi active savings goal nahi mila."
+            goal_text = "\u2022 Koi active savings goal nahi mila."
 
         return (
             f"### Savings & Goals Analysis\n"
@@ -403,9 +428,9 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
         available_cash = max(0.0, savings - invested)
         portfolio_text = ""
         if investments:
-            portfolio_text = "\n".join([f"• **{inv['asset_name']}** ({inv['asset_type']}): ₹{inv['amount_invested']:,.2f}" for inv in investments])
+            portfolio_text = "\n".join([f"\u2022 **{inv['asset_name']}** ({inv['asset_type']}): ₹{inv['amount_invested']:,.2f}" for inv in investments])
         else:
-            portfolio_text = "• Portfolio me koi active investment nahi hai."
+            portfolio_text = "\u2022 Portfolio me koi active investment nahi hai."
 
         return (
             f"### Investment & Asset Advisory\n"
@@ -422,9 +447,9 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
         return (
             f"### Expense Runway Evaluation\n"
             f"Aapka current runway **{runway:.1f} months** hai (₹{savings:,.2f} net savings divided by ₹{expense:,.2f} monthly expenses).\n\n"
-            f"• **6+ Months**: Ideal safety zone.\n"
-            f"• **3-6 Months**: Moderate safety zone.\n"
-            f"• **Under 3 Months**: Aggressive zone (expenses cut-down recommend hai).\n\n"
+            f"\u2022 **6+ Months**: Ideal safety zone.\n"
+            f"\u2022 **3-6 Months**: Moderate safety zone.\n"
+            f"\u2022 **Under 3 Months**: Aggressive zone (expenses cut-down recommend hai).\n\n"
             f"Aapka runway safely secure hai! Detailed income-expense ratios: [action:navigate:analytics:Open Analytics Tab]"
             + disclaimer
         )
@@ -444,10 +469,10 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
         return (
             f"### Advisor Help Guide\n"
             f"Main capitallens metrics aur statistics analyze karke help kar sakta hoon. Aap ye quick commands use kar sakte hain:\n\n"
-            f"• `/summary` — Pure portfolio ki diagnostic report.\n"
-            f"• `/savings` — Active goals aur emergency fund status.\n"
-            f"• `/invest` — Allocations recommendations aur risk levels.\n"
-            f"• `/help` — Help guidelines aur shortcuts.\n\n"
+            f"\u2022 `/summary` — Pure portfolio ki diagnostic report.\n"
+            f"\u2022 `/savings` — Active goals aur emergency fund status.\n"
+            f"\u2022 `/invest` — Allocations recommendations aur risk levels.\n"
+            f"\u2022 `/help` — Help guidelines aur shortcuts.\n\n"
             f"Aap simple language me query type karke bhi pooch sakte hain (Hinglish/English supported)."
             + disclaimer
         )
@@ -457,8 +482,8 @@ def generate_local_fallback_response(query: str, active_tab: str, data: dict, db
         f"Aapke query ke respect me main aapko financial stats detail share kar sakta hoon:\n\n"
         f"Aapka current savings rate **{savings_rate:.1f}%** hai, monthly cash savings ₹{savings:,.2f} hai, aur runway {runway:.1f} months hai. "
         f"Aap kis section ke details discuss karna chahte hain? \n"
-        f"• [action:navigate:analytics:Open Analytics]\n"
-        f"• [action:navigate:savings:Open Savings]\n"
-        f"• [action:navigate:investments:Open Investments]\n"
+        f"\u2022 [action:navigate:analytics:Open Analytics]\n"
+        f"\u2022 [action:navigate:savings:Open Savings]\n"
+        f"\u2022 [action:navigate:investments:Open Investments]\n"
         + disclaimer
     )

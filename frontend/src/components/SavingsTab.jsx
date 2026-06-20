@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { savingsService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function SavingsTab({ goals, onRefresh }) {
+export default function SavingsTab({ goals, onRefresh, searchQuery }) {
   const { formatCurrency, currencySymbol } = useCurrency();
   const [logs, setLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -131,10 +131,10 @@ export default function SavingsTab({ goals, onRefresh }) {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-4">
         <div>
           <h2 className="font-display-lg text-4xl md:text-5xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent tracking-tighter leading-none mb-2 font-bold font-outfit">
-            Savings Workstation
+            Savings Goals
           </h2>
           <p className="text-on-surface-variant text-sm md:text-base opacity-80">
-            Define savings milestones, allocate capital, and review historical assets
+            Track your progress toward financial milestones
           </p>
         </div>
 
@@ -218,9 +218,17 @@ export default function SavingsTab({ goals, onRefresh }) {
         </div>
       </section>
 
-      {/* 2. Goals Card Grid */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {goals.map((goal, index) => {
+        {goals.filter(goal => {
+          if (!searchQuery) return true;
+          const query = searchQuery.toLowerCase().trim();
+          return (
+            goal.title.toLowerCase().includes(query) ||
+            (goal.category || '').toLowerCase().includes(query) ||
+            (goal.target_amount ? goal.target_amount.toString().includes(query) : false) ||
+            (goal.icon || '').toLowerCase().includes(query)
+          );
+        }).map((goal, index) => {
           const styling = getIconStyles(index);
           const pct = goal.progress_percentage ?? 0;
 
@@ -343,7 +351,14 @@ export default function SavingsTab({ goals, onRefresh }) {
             </thead>
             
             <tbody className="divide-y divide-glass-border">
-              {logs.map((log) => {
+              {logs.filter(log => {
+                if (!searchQuery) return true;
+                const query = searchQuery.toLowerCase().trim();
+                return (
+                  log.goal_title.toLowerCase().includes(query) ||
+                  (log.amount ? log.amount.toString().includes(query) : false)
+                );
+              }).map((log) => {
                 const isDeposit = log.amount > 0;
                 return (
                   <tr key={log.id} className="hover:bg-surface-variant/20 transition-colors">

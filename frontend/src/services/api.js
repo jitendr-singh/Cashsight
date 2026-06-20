@@ -71,14 +71,12 @@ async function request(endpoint, options = {}, mockData = null) {
 // ─── AUTH SERVICES ──────────────────────────────────────────────────────────
 export const authService = {
   login: async (username, password) => {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
     try {
       const formData = new URLSearchParams();
       formData.append('username', username);
       formData.append('password', password);
-
-      // 4-second timeout — fall back to guest if backend unreachable
-      const controller = new AbortController();
-      const tid = setTimeout(() => controller.abort(), 4000);
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -90,50 +88,55 @@ export const authService = {
       });
       clearTimeout(tid);
 
+      if (response.status === 401) {
+        throw new Error('Invalid credentials');
+      }
       if (!response.ok) {
-        throw new Error('Authentication failed');
+        const text = await response.text();
+        throw new Error(text || 'Login failed');
       }
 
       const data = await response.json();
       setAuthToken(data.access_token);
       return data;
     } catch (error) {
-      console.warn('[API Client Warning] Login server offline, bypassing with guest user.');
-      // Mock login for offline sandbox
-      const mockUser = {
-        access_token: 'mock-sandbox-token',
-        token_type: 'bearer',
-        user: { id: 1, email: username || 'guest@capitallens.com', name: 'Executive Officer' }
-      };
-      setAuthToken(mockUser.access_token);
-      return mockUser;
+      clearTimeout(tid);
+      if (error.name === 'AbortError') {
+        throw new Error('Connection timed out. Please ensure the backend server is running.');
+      }
+      throw error;
     }
   },
 
   register: async (name, email, password) => {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 8000);
     try {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
       });
+      clearTimeout(tid);
 
+      if (response.status === 400) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Email already registered');
+      }
       if (!response.ok) {
-        throw new Error('Registration failed');
+        throw new Error('Registration failed. Please try again.');
       }
 
       const data = await response.json();
       setAuthToken(data.access_token);
       return data;
     } catch (error) {
-      console.warn('[API Client Warning] Register server offline, using guest user bypass.');
-      const mockUser = {
-        access_token: 'mock-sandbox-token',
-        token_type: 'bearer',
-        user: { id: 1, email, name }
-      };
-      setAuthToken(mockUser.access_token);
-      return mockUser;
+      clearTimeout(tid);
+      if (error.name === 'AbortError') {
+        throw new Error('Connection timed out. Please ensure the backend server is running.');
+      }
+      throw error;
     }
   },
 
@@ -145,10 +148,25 @@ export const authService = {
     });
   },
 
+  updateProfile: async ({ name, email }) => {
+    return request('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ name, email }),
+    }, null);
+  },
+
+  changePassword: async ({ current_password, new_password }) => {
+    return request('/users/me/password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
+    }, null);
+  },
+
   logout: () => {
     setAuthToken(null);
   }
 };
+
 
 // ─── ANALYTICS SERVICES ──────────────────────────────────────────────────────
 export const analyticsService = {
@@ -336,8 +354,9 @@ export const analyticsService = {
     });
   },
 
-  getByCategory: async () => {
-    return request('/analytics/by-category', {}, {
+  getByCategory: async (scope = 'month') => {
+    return request(`/analytics/by-category?scope=${scope}`, {}, {
+      scope,
       expense_by_category: [
         { category: 'Housing', amount: 4980.00 },
         { category: 'Food', amount: 3112.50 },

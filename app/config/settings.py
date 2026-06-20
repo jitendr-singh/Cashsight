@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # API
     API_TITLE: str = "Capitallens API"
     DEBUG: bool = True
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+    EMERGENCY_FUND_MINIMUM: float = 15000.0
     
     # Files
     UPLOAD_DIR: str = "./uploads"

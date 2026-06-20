@@ -63,11 +63,11 @@ const getAssetMeta = (type) => {
   }
 };
 
-export default function Investments() {
+export default function Investments({ searchQuery }) {
   const { formatCurrency, currencySymbol } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  
+
   // Data States
   const [portfolio, setPortfolio] = useState({
     total_invested: 0.0,
@@ -91,7 +91,7 @@ export default function Investments() {
   const [emergencyGap, setEmergencyGap] = useState(0.0);
   const [warningMessage, setWarningMessage] = useState(null);
   const [portfolioWarnings, setPortfolioWarnings] = useState([]);
-  
+
   // Modal / Form States
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAssetType, setSelectedAssetType] = useState('stocks');
@@ -219,30 +219,30 @@ export default function Investments() {
     if (!sug || !sug.historical_data) return null;
     const hist = sug.historical_data;
     const type = sug.asset_type;
-    
+
     // Market-linked assets default mapping
     const isMarketLinked = ['stocks', 'mutual_funds', 'gold', 'real_estate'].includes(type) || hist.current_price !== undefined;
-    
+
     const rows = [];
     const yearsList = [1, 3, 5, 10];
     const currentYear = new Date().getFullYear();
-    
+
     if (isMarketLinked) {
       const currentPrice = hist.current_price;
       const periods = hist.periods || {};
       if (!currentPrice) return null;
-      
+
       for (const yr of yearsList) {
         const histPrice = periods[String(yr)] || periods[yr];
         if (histPrice === undefined || histPrice === null || histPrice <= 0) continue;
-        
+
         const units = recommendedAmount / histPrice;
         const currentValue = units * currentPrice;
         const totalReturn = ((currentValue - recommendedAmount) / recommendedAmount) * 100;
         const cagr = (Math.pow(currentPrice / histPrice, 1 / yr) - 1) * 100;
         const netProfit = currentValue - recommendedAmount;
         const startYear = currentYear - yr;
-        
+
         rows.push({
           period: `${yr} Year${yr > 1 ? 's' : ''}`,
           year: `${yr} Yr Ago (${startYear})`,
@@ -259,7 +259,7 @@ export default function Investments() {
       for (const yr of yearsList) {
         const rate = rates[String(yr)] || rates[yr];
         if (rate === undefined || rate === null || rate <= 0) continue;
-        
+
         // Compound quarterly (k = 4)
         const k = 4;
         const currentValue = recommendedAmount * Math.pow(1 + (rate / 100) / k, k * yr);
@@ -267,7 +267,7 @@ export default function Investments() {
         const cagr = (Math.pow(currentValue / recommendedAmount, 1 / yr) - 1) * 100;
         const netProfit = currentValue - recommendedAmount;
         const startYear = currentYear - yr;
-        
+
         rows.push({
           period: `${yr} Year${yr > 1 ? 's' : ''}`,
           year: `${yr} Yr Ago (${startYear})`,
@@ -279,7 +279,7 @@ export default function Investments() {
         });
       }
     }
-    
+
     return rows.length > 0 ? rows : null;
   };
 
@@ -288,7 +288,7 @@ export default function Investments() {
     const { name, value } = e.target;
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
-      
+
       // Auto-calculate amount_invested for Stocks & Mutual Funds
       if (selectedAssetType === 'stocks' || selectedAssetType === 'mutual_funds') {
         const qty = parseFloat(updated.quantity) || 0;
@@ -299,7 +299,7 @@ export default function Investments() {
         const price = parseFloat(updated.buy_price) || 0;
         updated.amount_invested = (grams * price).toFixed(2);
       }
-      
+
       return updated;
     });
   };
@@ -365,7 +365,7 @@ export default function Investments() {
       }
 
       await investmentService.create(payload);
-      
+
       // Reset & Refresh
       setModalOpen(false);
       handleAssetTypeChange('stocks');
@@ -412,9 +412,9 @@ export default function Investments() {
     setTrustModalStep('report');
     setDisclaimerExpanded(false);
     setSyncError('');
-    
+
     const type = sug.asset_type || 'stocks';
-    
+
     // Auto-calculate quantity and buy price/NAV if stock/MF/gold
     let qty = '';
     let price = '';
@@ -435,7 +435,7 @@ export default function Investments() {
       rental_income: '',
       appreciation_rate: ''
     });
-    
+
     setTrustModalOpen(true);
   };
 
@@ -443,13 +443,13 @@ export default function Investments() {
     const { name, value } = e.target;
     setSyncFormData((prev) => {
       const updated = { ...prev, [name]: value };
-      
+
       if (prev.asset_type === 'stocks' || prev.asset_type === 'mutual_funds' || prev.asset_type === 'gold') {
         const qty = parseFloat(updated.quantity) || 0;
         const price = parseFloat(updated.buy_price) || 0;
         updated.amount_invested = (qty * price).toFixed(2);
       }
-      
+
       return updated;
     });
   };
@@ -494,7 +494,7 @@ export default function Investments() {
       }
 
       await investmentService.create(payload);
-      
+
       setTrustModalOpen(false);
       await loadPortfolioData();
       await loadAISuggestions();
@@ -711,11 +711,11 @@ export default function Investments() {
     .map(key => {
       const amount = allocationGroup[key];
       const percentage = totalPortfolioValue > 0 ? (amount / totalPortfolioValue) * 100 : 0;
-      
+
       const circumference = 251.2;
       const strokeDash = (percentage / 100) * circumference;
       const strokeOffset = -((accumulatedPercent / 100) * circumference);
-      
+
       accumulatedPercent += percentage;
 
       return {
@@ -733,8 +733,19 @@ export default function Investments() {
 
   // Filter holdings table
   const filteredHoldings = portfolio.investments.filter(inv => {
-    if (activeSubTab === 'all') return true;
-    return inv.asset_type === activeSubTab;
+    const matchSubTab = activeSubTab === 'all' || inv.asset_type === activeSubTab;
+    if (!matchSubTab) return false;
+
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      inv.asset_name.toLowerCase().includes(query) ||
+      inv.asset_type.toLowerCase().includes(query) ||
+      (inv.quantity ? inv.quantity.toString().includes(query) : false) ||
+      (inv.buy_price ? inv.buy_price.toString().includes(query) : false) ||
+      inv.amount_invested.toString().includes(query) ||
+      inv.current_value.toString().includes(query)
+    );
   });
 
   return (
@@ -837,7 +848,7 @@ export default function Investments() {
           <h3 className="w-full text-left font-semibold text-[15px] text-text-primary uppercase tracking-wider mb-6">
             Portfolio Allocation
           </h3>
-          
+
           {totalPortfolioValue > 0 ? (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8 w-full">
               {/* Radial SVG Donut */}
@@ -930,14 +941,12 @@ export default function Investments() {
             <div className="flex flex-col gap-4 flex-1">
               {/* Safety Warning Banner */}
               {warningMessage && (
-                <div className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs leading-relaxed backdrop-blur-md ${
-                  runwayMonths < 1.5 
-                    ? 'bg-rose-500/5 border-rose-500/30 text-rose-200' 
-                    : 'bg-amber-500/5 border-amber-500/30 text-amber-200'
-                }`}>
-                  <span className={`material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0 ${
-                    runwayMonths < 1.5 ? 'text-rose-400' : 'text-amber-400'
+                <div className={`p-3.5 rounded-xl border flex items-start gap-3 text-xs leading-relaxed backdrop-blur-md ${runwayMonths < 1.5
+                  ? 'bg-rose-500/5 border-rose-500/30 text-rose-200'
+                  : 'bg-amber-500/5 border-amber-500/30 text-amber-200'
                   }`}>
+                  <span className={`material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0 ${runwayMonths < 1.5 ? 'text-rose-400' : 'text-amber-400'
+                    }`}>
                     {runwayMonths < 1.5 ? 'gpp_maybe' : 'info'}
                   </span>
                   <div className="flex-1">
@@ -955,9 +964,8 @@ export default function Investments() {
                 <div className="flex flex-col gap-0.5 border-r border-glass-border/20 last:border-0 pr-2 last:pr-0">
                   <span className="text-[9px] font-bold text-on-surface-variant/50 uppercase tracking-wider">Risk Profile</span>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className={`w-2 h-2 rounded-full ${
-                      riskProfile === 'Conservative' ? 'bg-[#10b981]' : riskProfile === 'Moderate' ? 'bg-[#f59e0b]' : 'bg-[#6366f1]'
-                    }`}></div>
+                    <div className={`w-2 h-2 rounded-full ${riskProfile === 'Conservative' ? 'bg-[#10b981]' : riskProfile === 'Moderate' ? 'bg-[#f59e0b]' : 'bg-[#6366f1]'
+                      }`}></div>
                     <span className="text-xs font-bold text-text-primary">{riskProfile}</span>
                   </div>
                 </div>
@@ -1007,7 +1015,7 @@ export default function Investments() {
                 {suggestions.map((sug, idx) => {
                   const isHigh = sug.risk_level === 'High';
                   const isMed = sug.risk_level === 'Medium';
-                  
+
                   let cardBorder = 'border-primary/20';
                   let riskText = 'text-primary bg-primary/10';
                   if (isHigh) {
@@ -1023,22 +1031,22 @@ export default function Investments() {
                     let score = 88;
                     if (savingsRate > 50) score += 4;
                     else if (savingsRate < 20) score -= 6;
-                    
+
                     if (emergencyFundStatus === 'Safe') score += 3;
                     else score -= 4;
 
                     if (sug.risk_level === 'Low' && savingsRate < 30) score += 3;
                     if (sug.risk_level === 'High' && savingsRate > 40) score += 2;
-                    
+
                     return Math.min(98, Math.max(78, score));
                   })();
 
                   return (
                     <div key={idx} className={`p-4 rounded-xl border bg-gradient-to-br from-[#0e1624]/60 to-[#0b0f19]/30 hover:shadow-[0_8px_24px_rgba(0,0,0,0.15)] transition-all duration-300 flex flex-col justify-between relative overflow-hidden group hover:-translate-y-0.5 ${cardBorder}`}>
-                      
+
                       {/* Top edge glow overlay */}
                       <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      
+
                       <div>
                         {/* Asset Header Info */}
                         <div className="flex flex-col gap-2 mb-3 border-b border-glass-border/20 pb-3">
@@ -1062,19 +1070,19 @@ export default function Investments() {
                             </span>
                           </div>
                         </div>
-                        
+
                         {/* Asset Name */}
                         <h4 className="font-bold text-sm text-text-primary tracking-tight mb-2 group-hover:text-primary transition-colors font-headline">
                           {sug.asset_name}
                         </h4>
-                        
+
                         {/* Why it's best (Short Rationale Summary) */}
                         <p className="text-xs text-on-surface-variant/80 leading-relaxed mb-4">
                           <span className="text-primary font-bold">Why it's best: </span>
                           {Array.isArray(sug.allocation_rationale) ? sug.allocation_rationale[0] : (sug.rationale || sug.allocation_rationale)}
                         </p>
                       </div>
-                      
+
                       {/* Action Block */}
                       <div className="mt-auto space-y-2">
                         <div className="flex justify-between items-center text-[10px] px-1 text-on-surface-variant/65 font-semibold">
@@ -1118,11 +1126,10 @@ export default function Investments() {
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id)}
-            className={`px-4 py-2.5 font-bold text-xs tracking-wider transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
-              activeSubTab === tab.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-on-surface-variant/75 hover:text-primary'
-            }`}
+            className={`px-4 py-2.5 font-bold text-xs tracking-wider transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${activeSubTab === tab.id
+              ? 'border-primary text-primary'
+              : 'border-transparent text-on-surface-variant/75 hover:text-primary'
+              }`}
           >
             <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
             {tab.label}
@@ -1247,11 +1254,10 @@ export default function Investments() {
                   key={t.id}
                   type="button"
                   onClick={() => handleAssetTypeChange(t.id)}
-                  className={`px-3 py-1.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-all ${
-                    selectedAssetType === t.id
-                      ? 'bg-primary text-on-primary shadow-lg'
-                      : 'bg-surface-variant/20 text-on-surface-variant/80 hover:bg-surface-variant/50'
-                  }`}
+                  className={`px-3 py-1.5 rounded-md text-[11px] font-bold whitespace-nowrap transition-all ${selectedAssetType === t.id
+                    ? 'bg-primary text-on-primary shadow-lg'
+                    : 'bg-surface-variant/20 text-on-surface-variant/80 hover:bg-surface-variant/50'
+                    }`}
                 >
                   {t.label}
                 </button>
@@ -1341,11 +1347,10 @@ export default function Investments() {
                     </div>
                     {/* Live price result banner */}
                     {livePriceData && (
-                      <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${
-                        livePriceData.error
-                          ? 'bg-rose-expense/10 border border-rose-expense/20 text-rose-expense'
-                          : 'bg-primary/8 border border-primary/20 text-primary'
-                      }`}>
+                      <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${livePriceData.error
+                        ? 'bg-rose-expense/10 border border-rose-expense/20 text-rose-expense'
+                        : 'bg-primary/8 border border-primary/20 text-primary'
+                        }`}>
                         {livePriceData.error ? (
                           <span>❌ {livePriceData.error.includes('404') ? `Ticker not found. For stocks use NSE code (e.g. RELIANCE, TCS, INFY). For MFs use scheme code (e.g. 120503).` : livePriceData.error}</span>
                         ) : (
@@ -1409,11 +1414,10 @@ export default function Investments() {
                       </div>
                     </div>
                     {livePriceData && selectedAssetType === 'gold' && (
-                      <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${
-                        livePriceData.error
-                          ? 'bg-rose-expense/10 border border-rose-expense/20 text-rose-expense'
-                          : 'bg-primary/8 border border-primary/20 text-primary'
-                      }`}>
+                      <div className={`p-2.5 rounded-lg text-xs flex items-center justify-between ${livePriceData.error
+                        ? 'bg-rose-expense/10 border border-rose-expense/20 text-rose-expense'
+                        : 'bg-primary/8 border border-primary/20 text-primary'
+                        }`}>
                         {livePriceData.error ? (
                           <span>❌ {livePriceData.error}</span>
                         ) : (
@@ -1589,9 +1593,8 @@ export default function Investments() {
 
               {/* File Upload Zone */}
               <div
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                  casFile ? 'border-primary/60 bg-primary/5' : 'border-glass-border/40 hover:border-primary/40 bg-surface-variant/10'
-                }`}
+                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${casFile ? 'border-primary/60 bg-primary/5' : 'border-glass-border/40 hover:border-primary/40 bg-surface-variant/10'
+                  }`}
                 onClick={() => document.getElementById('cas-file-input').click()}
               >
                 <input
@@ -1641,13 +1644,11 @@ export default function Investments() {
                   <button
                     type="button"
                     onClick={() => setCasAutoSave(!casAutoSave)}
-                    className={`relative w-11 h-6 rounded-full transition-all ${
-                      casAutoSave ? 'bg-primary' : 'bg-surface-variant/40'
-                    }`}
+                    className={`relative w-11 h-6 rounded-full transition-all ${casAutoSave ? 'bg-primary' : 'bg-surface-variant/40'
+                      }`}
                   >
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                      casAutoSave ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${casAutoSave ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
                   </button>
                   <div>
                     <p className="text-xs font-bold text-text-primary">Auto-save to Portfolio</p>
@@ -1798,13 +1799,13 @@ export default function Investments() {
           let score = 88;
           if (savingsRate > 50) score += 4;
           else if (savingsRate < 20) score -= 6;
-          
+
           if (emergencyFundStatus === 'Safe') score += 3;
           else score -= 4;
 
           if (selectedSugVal.risk_level === 'Low' && savingsRate < 30) score += 3;
           if (selectedSugVal.risk_level === 'High' && savingsRate > 40) score += 2;
-          
+
           return Math.min(98, Math.max(78, score));
         };
 
@@ -1875,7 +1876,7 @@ export default function Investments() {
           return 'HIGH';
         };
 
-         return (
+        return (
           <div className="fixed inset-0 z-[999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm">
             <div className={`w-full ${trustViewMode === 'full' ? 'max-w-4xl' : 'max-w-xl'} midnight-glass border border-glass-border rounded-2xl shadow-2xl relative flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden transition-all duration-300 animate-fade-in`}>
               {/* Modal Header */}
@@ -1896,7 +1897,7 @@ export default function Investments() {
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Controls */}
                 <div className="flex items-center gap-3 ml-auto">
                   {/* Print Button */}
@@ -1918,22 +1919,20 @@ export default function Investments() {
                       <button
                         type="button"
                         onClick={() => setTrustViewMode('quick')}
-                        className={`px-2.5 py-1 rounded-md transition-all ${
-                          trustViewMode === 'quick'
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant/70 hover:text-text-primary'
-                        }`}
+                        className={`px-2.5 py-1 rounded-md transition-all ${trustViewMode === 'quick'
+                          ? 'bg-primary text-on-primary shadow-sm'
+                          : 'text-on-surface-variant/70 hover:text-text-primary'
+                          }`}
                       >
                         Quick Report
                       </button>
                       <button
                         type="button"
                         onClick={() => setTrustViewMode('full')}
-                        className={`px-2.5 py-1 rounded-md transition-all ${
-                          trustViewMode === 'full'
-                            ? 'bg-primary text-on-primary shadow-sm'
-                            : 'text-on-surface-variant/70 hover:text-text-primary'
-                        }`}
+                        className={`px-2.5 py-1 rounded-md transition-all ${trustViewMode === 'full'
+                          ? 'bg-primary text-on-primary shadow-sm'
+                          : 'text-on-surface-variant/70 hover:text-text-primary'
+                          }`}
                       >
                         Full Analysis
                       </button>
@@ -1952,7 +1951,7 @@ export default function Investments() {
 
               {trustModalStep === 'report' ? (
                 <div className="p-3.5 sm:p-5 space-y-3.5 sm:space-y-4">
-                  
+
                   {/* Dynamic Suggested Amount Adjuster Panel */}
                   <div className="p-3 md:p-4 rounded-xl border border-glass-border/40 bg-gradient-to-r from-primary/10 to-transparent flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="space-y-1">
@@ -1964,7 +1963,7 @@ export default function Investments() {
                         Adjust how much you wish to invest. All historical performance scenarios and projected returns will update instantly.
                       </p>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -1974,7 +1973,7 @@ export default function Investments() {
                       >
                         -
                       </button>
-                      
+
                       <div className="relative">
                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant/65">
                           {currencySymbol}
@@ -1991,7 +1990,7 @@ export default function Investments() {
                           placeholder="Amount"
                         />
                       </div>
-                      
+
                       <button
                         type="button"
                         onClick={() => setCustomAllocAmount(prev => prev + 5000)}
@@ -2000,7 +1999,7 @@ export default function Investments() {
                       >
                         +
                       </button>
-                      
+
                       {customAllocAmount !== (selectedSugVal.recommended_allocation || 10000) && (
                         <button
                           type="button"
@@ -2013,7 +2012,7 @@ export default function Investments() {
                       )}
                     </div>
                   </div>
-                  
+
                   {trustViewMode === 'quick' ? (
                     /* ─── QUICK VIEW LAYOUT (COMPACT CARDS) ─── */
                     <div className="space-y-4">
@@ -2074,15 +2073,14 @@ export default function Investments() {
                             <span className="material-symbols-outlined text-rose-expense text-base md:text-lg">warning</span>
                             <h4 className="text-xs md:text-sm font-bold text-text-primary uppercase tracking-wider">Risk Metrics & Loss Protection</h4>
                           </div>
-                          <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full ${
-                            riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full ${riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                             riskVal <= 7 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                            'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          }`}>
+                              'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
                             {getRiskLabel(riskVal)} RISK — {riskVal}/10
                           </span>
                         </div>
-                        
+
                         {/* Premium Continuous Gradient Slider */}
                         <div className="relative h-2 w-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 mb-4 mt-2">
                           <div
@@ -2142,7 +2140,7 @@ export default function Investments() {
                           <span className="material-symbols-outlined text-primary text-base md:text-lg">history</span>
                           <h4 className="text-xs md:text-sm font-bold text-text-primary uppercase tracking-wider">Historical Performance Illustration</h4>
                         </div>
-                        
+
                         <blockquote className="text-xs md:text-sm italic border-l-2 border-primary/40 pl-2.5 text-on-surface-variant/80 mb-3">
                           "How your {customAllocAmount === (selectedSugVal.recommended_allocation || 10000) ? 'recommended' : 'configured'} investment amount would have performed historically"
                         </blockquote>
@@ -2220,7 +2218,7 @@ export default function Investments() {
                             )}
                           </div>
                         </div>
-                        
+
                         {disclaimerExpanded && (
                           <ul className="list-disc list-inside space-y-1.5 text-xs md:text-sm text-on-surface-variant/65 leading-relaxed pl-6 pt-2 border-t border-glass-border/10 animate-fade-in font-medium">
                             <li>Past performance does not guarantee future returns. Projections are indicators, not promises.</li>
@@ -2244,7 +2242,7 @@ export default function Investments() {
                   ) : (
                     /* ─── FULL REPORT VIEW (HYBRID ROW-WISE & COLUMN-WISE LAYOUT) ─── */
                     <div className="space-y-4 w-full">
-                      
+
                       {/* Row 1: Snapshot and Rationale side-by-side */}
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                         {/* Client Financial Profile */}
@@ -2309,15 +2307,14 @@ export default function Investments() {
                             <span className="material-symbols-outlined text-rose-expense text-[18px]">warning</span>
                             <h4 className="text-xs md:text-sm font-bold text-text-primary uppercase tracking-wider">Risk Metrics & Loss Protection</h4>
                           </div>
-                          <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full ${
-                            riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          <span className={`text-xs font-bold uppercase px-2.5 py-0.5 rounded-full ${riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                             riskVal <= 7 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                            'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          }`}>
+                              'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
                             {getRiskLabel(riskVal)} RISK — {riskVal}/10
                           </span>
                         </div>
-                        
+
                         {/* Premium Continuous Gradient Slider */}
                         <div className="relative h-2 w-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 mb-4 mt-2">
                           <div
@@ -2437,7 +2434,7 @@ export default function Investments() {
                         <p className="text-xs text-on-surface-variant/60 mb-3">
                           Compounding <strong>{formatCurrency(principal, 0)}</strong> over time based on historical market fluctuation bounds:
                         </p>
-                        
+
                         <div className="overflow-x-auto w-full max-w-full block border border-glass-border/20 rounded-lg mb-4">
                           <table className="w-full text-left text-xs md:text-sm">
                             <thead>
@@ -2483,7 +2480,7 @@ export default function Investments() {
                             </tbody>
                           </table>
                         </div>
-                        
+
                         <div className="bg-primary/5 border border-primary/20 p-3.5 rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs md:text-sm leading-relaxed">
                           <div>
                             <p className="text-[10px] md:text-xs text-on-surface-variant/60 font-semibold uppercase">vs SBI Fixed Deposit (7%):</p>
@@ -2524,11 +2521,10 @@ export default function Investments() {
                                 </td>
                                 <td className="py-3 px-3 text-right text-primary">+{selectedSugVal.expected_return_rate}%</td>
                                 <td className="py-3 px-3 text-center uppercase tracking-wider text-xs md:text-sm">
-                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                    riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${riskVal <= 3 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                                     riskVal <= 7 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                                    'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                  }`}>
+                                      'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                    }`}>
                                     {getRiskLabel(riskVal)}
                                   </span>
                                 </td>
@@ -2584,7 +2580,7 @@ export default function Investments() {
                             )}
                           </div>
                         </div>
-                        
+
                         {disclaimerExpanded && (
                           <ul className="list-disc list-inside space-y-1.5 text-xs md:text-sm text-on-surface-variant/65 leading-relaxed pl-6 pt-2 border-t border-glass-border/10 animate-fade-in font-medium">
                             <li>Past performance does not guarantee future returns. Projections are indicators, not promises.</li>
@@ -2618,7 +2614,7 @@ export default function Investments() {
                         Data sources: NSE historical data, AMFI returns, transaction history
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {getBrokerLinks(selectedSugVal).map((link, i) => (
                         <button

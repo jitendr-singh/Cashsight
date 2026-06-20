@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './context/AuthContext';
+import { useCurrency } from './context/CurrencyContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import MetricsGrid from './components/MetricsGrid';
@@ -13,9 +14,13 @@ import SmartSavingsAlert from './components/SmartSavingsAlert';
 import SavingsTab from './components/SavingsTab';
 import Investments from './components/Investments';
 import ChatAssistant from './components/ChatAssistant';
+import AICopilotPage from './components/AICopilotPage';
+import QuickActionDock from './components/QuickActionDock';
+import SettingsTab from './components/SettingsTab';
+import AddTransactionModal from './components/AddTransactionModal';
 import AuthPage from './components/AuthPage';
 import LandingPage from './components/LandingPage';
-import { analyticsService, savingsService } from './services/api';
+import { analyticsService, savingsService, transactionService } from './services/api';
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -24,6 +29,9 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showAuth, setShowAuth] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showAddTxnModal, setShowAddTxnModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Dashboard Data States
   const [summaryData, setSummaryData] = useState(null);
@@ -160,6 +168,15 @@ export default function App() {
       setDataLoading(false);
     }
   }, []);
+  
+  const handleCreateTransaction = async (txnData) => {
+    try {
+      await transactionService.createTransaction(txnData);
+      fetchDashboardData();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Sync on Mount
   useEffect(() => {
@@ -176,6 +193,35 @@ export default function App() {
       year: 'numeric',
     }).format(new Date());
   };
+
+  const { formatCurrency } = useCurrency();
+
+  const isToday = (dateStr) => {
+    if (!dateStr) return false;
+    const dateObj = new Date(dateStr);
+    if (!isNaN(dateObj.getTime())) {
+      const today = new Date();
+      return dateObj.getDate() === today.getDate() &&
+             dateObj.getMonth() === today.getMonth() &&
+             dateObj.getFullYear() === today.getFullYear();
+    }
+    try {
+      const today = new Date();
+      const todayMonthStr = today.toLocaleString('en-US', { month: 'short' });
+      const todayDayStr = String(today.getDate());
+      return dateStr.includes(todayMonthStr) && dateStr.includes(todayDayStr);
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const todaySpent = recentTransactions
+    .filter(txn => txn.type === 'expense' && isToday(txn.date))
+    .reduce((sum, txn) => sum + parseFloat(txn.amount), 0);
+
+  const totalBalance = summaryData?.total_savings ?? 1248592;
+  const availableAmount = summaryData?.available_cash ?? totalBalance;
+
 
   if (authLoading) {
     return (
@@ -213,6 +259,10 @@ export default function App() {
       <Header
         onOpenSidebar={() => setSidebarOpen(true)}
         onSync={fetchDashboardData}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
       {/* Main Console View */}
@@ -222,23 +272,43 @@ export default function App() {
         {activeTab === 'dashboard' ? (
           <>
             {/* Header Title Section */}
-            <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+            <header className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
               <div>
-                <h2 className="font-display-lg text-4xl md:text-5xl bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent tracking-tighter leading-none mb-2 font-bold">
-                  Wealth Command
-                </h2>
-                <p className="text-on-surface-variant text-sm md:text-base opacity-80">
+                <div className="filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
+                  <h2 
+                    className="font-body-base text-3xl md:text-[38px] font-extrabold bg-gradient-to-b from-white to-[#cbd5e1] bg-clip-text text-transparent tracking-tight leading-none pb-1"
+                    style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                  >
+                    Wealth Command
+                  </h2>
+                </div>
+                <p className="text-on-surface-variant text-xs md:text-sm mt-1.5 opacity-70">
                   Executive summary for {getExecutiveDate()}
                 </p>
               </div>
               
-              <div className="flex gap-2">
-                <span className="bg-surface-variant/30 px-3 py-1 rounded border border-glass-border text-[10px] font-bold uppercase tracking-wider text-primary whitespace-nowrap">
-                  System Online
-                </span>
-                <span className="hidden sm:inline-block bg-surface-variant/30 px-3 py-1 rounded border border-glass-border text-[10px] font-bold uppercase tracking-wider text-on-surface-variant whitespace-nowrap">
-                  Grid: Active
-                </span>
+              <div className="flex gap-3">
+                {/* Today Spent Badge */}
+                <div className="bg-surface-variant/20 px-3.5 py-1.5 rounded-lg border border-glass-border/30 flex items-center gap-2.5 cursor-default">
+                  <div className="glow-point bg-rose-expense text-rose-expense animate-pulse flex-shrink-0"></div>
+                  <div className="flex flex-col">
+                    <span className="text-[8px] uppercase tracking-widest font-bold text-on-surface-variant opacity-60 leading-none mb-0.5">Today Spent</span>
+                    <span className="text-xs font-bold text-rose-expense leading-none">
+                      {formatCurrency(todaySpent)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Available to Spend Badge */}
+                <div className="bg-surface-variant/20 px-3.5 py-1.5 rounded-lg border border-glass-border/30 flex items-center gap-2.5 cursor-default">
+                  <div className="glow-point bg-primary text-primary animate-pulse flex-shrink-0"></div>
+                  <div className="flex flex-col">
+                    <span className="text-[8px] uppercase tracking-widest font-bold text-on-surface-variant opacity-60 leading-none mb-0.5">Available to Spend</span>
+                    <span className="text-xs font-bold text-primary leading-none">
+                      {formatCurrency(availableAmount)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </header>
 
@@ -250,7 +320,16 @@ export default function App() {
             />
 
             {/* Bento Metrics Cards */}
-            <MetricsGrid summaryData={summaryData} />
+            <QuickActionDock
+              summaryData={summaryData}
+              goals={savingsGoals}
+              onAddTransaction={() => setShowAddTxnModal(true)}
+              onAddGoal={() => setActiveTab('savings')}
+              onOpenChat={() => setIsChatOpen(true)}
+              setActiveTab={setActiveTab}
+            />
+
+            <MetricsGrid summaryData={summaryData} setActiveTab={setActiveTab} />
 
             {/* Trajectory Bar Charts */}
             <WealthGrowthChart summaryData={summaryData} />
@@ -270,18 +349,32 @@ export default function App() {
 
             {/* Transaction Logs Footer Block */}
             <RecentCommandLogs
-              transactions={recentTransactions}
+              transactions={recentTransactions.filter(txn => {
+                if (!searchQuery) return true;
+                const query = searchQuery.toLowerCase().trim();
+                return (
+                  txn.id.toString().toLowerCase().includes(query) ||
+                  (txn.category || '').toLowerCase().includes(query) ||
+                  (txn.description || '').toLowerCase().includes(query) ||
+                  txn.amount.toString().includes(query) ||
+                  (txn.type || '').toLowerCase().includes(query)
+                );
+              })}
               onRefresh={fetchDashboardData}
             />
           </>
         ) : activeTab === 'analytics' ? (
-          <AnalyticsTab />
+          <AnalyticsTab searchQuery={searchQuery} />
         ) : activeTab === 'transactions' ? (
-          <TransactionsManager />
+          <TransactionsManager searchQuery={searchQuery} />
         ) : activeTab === 'savings' ? (
-          <SavingsTab goals={savingsGoals} onRefresh={fetchDashboardData} />
+          <SavingsTab goals={savingsGoals} onRefresh={fetchDashboardData} searchQuery={searchQuery} />
         ) : activeTab === 'investments' ? (
-          <Investments />
+          <Investments searchQuery={searchQuery} />
+        ) : activeTab === 'ai_copilot' ? (
+          <AICopilotPage />
+        ) : activeTab === 'settings' ? (
+          <SettingsTab />
         ) : (
           /* Placeholder for other tab actions */
           <div className="midnight-glass p-8 rounded-xl text-center min-h-[300px] flex flex-col items-center justify-center gap-4">
@@ -301,7 +394,21 @@ export default function App() {
           </div>
         )}
       </main>
-      <ChatAssistant activeTab={activeTab} setActiveTab={setActiveTab} />
+      {activeTab !== 'ai_copilot' && (
+        <ChatAssistant
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isOpen={isChatOpen}
+          setIsOpen={setIsChatOpen}
+        />
+      )}
+
+      {/* Root level transaction modal */}
+      <AddTransactionModal
+        isOpen={showAddTxnModal}
+        onClose={() => setShowAddTxnModal(false)}
+        onSubmit={handleCreateTransaction}
+      />
     </div>
   );
 }

@@ -44,7 +44,7 @@ function Sparkline({ data, color }) {
   );
 }
 
-export default function MetricsGrid({ summaryData }) {
+export default function MetricsGrid({ summaryData, setActiveTab }) {
   const { formatCurrency } = useCurrency();
   
   const totalBalance = summaryData?.total_savings ?? 1248592;
@@ -98,7 +98,11 @@ export default function MetricsGrid({ summaryData }) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       
       {/* Metric 1: Total Balance */}
-      <div className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-default hover:scale-[1.01] hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[0_0_15px_rgba(90,240,179,0.06)] transition-all duration-300 border border-white/[0.04]">
+      <div 
+        role="button"
+        onClick={() => setActiveTab && setActiveTab('investments')}
+        className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-[0_0_15px_rgba(90,240,179,0.12)] transition-all duration-300 border border-white/[0.04]"
+      >
         {/* Top glowing bar */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-primary to-transparent opacity-75 group-hover:opacity-100 transition-opacity"></div>
         {/* Ambient Background Glow */}
@@ -145,7 +149,11 @@ export default function MetricsGrid({ summaryData }) {
       </div>
 
       {/* Metric 2: Monthly Income */}
-      <div className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-default hover:scale-[1.01] hover:-translate-y-0.5 hover:border-secondary/20 hover:shadow-[0_0_15px_rgba(93,230,255,0.06)] transition-all duration-300 border border-white/[0.04]">
+      <div 
+        role="button"
+        onClick={() => setActiveTab && setActiveTab('analytics')}
+        className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:-translate-y-0.5 hover:border-secondary/45 hover:shadow-[0_0_15px_rgba(93,230,255,0.12)] transition-all duration-300 border border-white/[0.04]"
+      >
         {/* Top glowing bar */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-secondary to-transparent opacity-75 group-hover:opacity-100 transition-opacity"></div>
         {/* Ambient Background Glow */}
@@ -178,7 +186,11 @@ export default function MetricsGrid({ summaryData }) {
       </div>
 
       {/* Metric 3: Monthly Expenses */}
-      <div className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-default hover:scale-[1.01] hover:-translate-y-0.5 hover:border-rose-expense/20 hover:shadow-[0_0_15px_rgba(251,113,133,0.06)] transition-all duration-300 border border-white/[0.04]">
+      <div 
+        role="button"
+        onClick={() => setActiveTab && setActiveTab('analytics')}
+        className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:-translate-y-0.5 hover:border-rose-expense/45 hover:shadow-[0_0_15px_rgba(251,113,133,0.12)] transition-all duration-300 border border-white/[0.04]"
+      >
         {/* Top glowing bar */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-rose-expense to-transparent opacity-75 group-hover:opacity-100 transition-opacity"></div>
         {/* Ambient Background Glow */}
@@ -211,7 +223,11 @@ export default function MetricsGrid({ summaryData }) {
       </div>
 
       {/* Metric 4: Total Entries */}
-      <div className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-default hover:scale-[1.01] hover:-translate-y-0.5 hover:border-violet-accent/20 hover:shadow-[0_0_15px_rgba(167,139,250,0.06)] transition-all duration-300 border border-white/[0.04]">
+      <div 
+        role="button"
+        onClick={() => setActiveTab && setActiveTab('transactions')}
+        className="glass-card p-4 rounded-xl relative overflow-hidden group cursor-pointer hover:scale-[1.02] hover:-translate-y-0.5 hover:border-violet-accent/45 hover:shadow-[0_0_15px_rgba(167,139,250,0.12)] transition-all duration-300 border border-white/[0.04]"
+      >
         {/* Top glowing bar */}
         <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-violet-accent to-transparent opacity-75 group-hover:opacity-100 transition-opacity"></div>
         {/* Ambient Background Glow */}

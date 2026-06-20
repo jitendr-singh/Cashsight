@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { analyticsService } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function AnalyticsTab() {
+export default function AnalyticsTab({ searchQuery }) {
   const { formatCurrency, currencySymbol } = useCurrency();
   // Summary Stats States
   const [summary, setSummary] = useState({
@@ -468,6 +468,19 @@ export default function AnalyticsTab() {
   const savingsPath = showSavings ? generateCurvePath(savingsPoints) : '';
   const incomeArea  = showIncome  ? generateAreaPath(incomePoints)   : '';
 
+  // Filter recent transactions locally by the global searchQuery
+  const filteredRecentTxns = recentTxns.filter(txn => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase().trim();
+    return (
+      (txn.description || '').toLowerCase().includes(query) ||
+      (txn.category || '').toLowerCase().includes(query) ||
+      (txn.type || '').toLowerCase().includes(query) ||
+      txn.amount.toString().includes(query) ||
+      (txn.date || '').toLowerCase().includes(query)
+    );
+  });
+
   // Total Burn category reference for progress scaling
   const maxCategoryAmount = Math.max(...categoryBreakdown.map((c) => c.amount), 1.0);
 
@@ -505,7 +518,9 @@ export default function AnalyticsTab() {
             </span>
             <span>
               {summary.burn_rate_trend > 0 ? '+' : ''}
-              {summary.burn_rate_trend}% vs Last Mo
+              {summary.burn_rate_trend}% vs last month
+              {summary.burn_rate_trend < 0 && <span className="ml-1 opacity-70">(↓ less spending)</span>}
+              {summary.burn_rate_trend > 0 && <span className="ml-1 opacity-70">(↑ more spending)</span>}
             </span>
           </div>
           <div className="h-[2px] w-full bg-white/5 absolute bottom-0 left-0">
@@ -536,7 +551,7 @@ export default function AnalyticsTab() {
         {/* Financial Runway Card */}
         <div className="glass-card p-5 rounded-2xl flex items-center justify-between relative overflow-hidden">
           <div className="space-y-1">
-            <p class="text-[11px] font-bold text-text-secondary/50 uppercase tracking-widest">Financial Runway</p>
+            <p className="text-[11px] font-bold text-text-secondary/50 uppercase tracking-widest">Financial Runway</p>
             <h3 className="text-2xl font-extrabold text-text-primary font-outfit">
               {summary.runway_months} <span className="text-xs font-semibold text-text-secondary/40">Months</span>
             </h3>
@@ -553,7 +568,7 @@ export default function AnalyticsTab() {
 
           {/* Semi-radial circle indicators */}
           <div className="relative w-12 h-12">
-            <svg class="w-full h-full -rotate-90" viewBox="0 0 36 36">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="16" stroke="rgba(148, 163, 184, 0.06)" strokeWidth="3" fill="none" />
               <circle
                 cx="18" cy="18" r="16"
@@ -961,8 +976,8 @@ export default function AnalyticsTab() {
         <div className="col-span-12 lg:col-span-4 glass-card p-6 rounded-3xl flex flex-col justify-between">
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h3 className="font-outfit font-bold text-lg text-text-primary">Burn Distribution</h3>
-              <p class="text-xs text-text-secondary/50">Category-wise spend mix</p>
+              <h3 className="font-outfit font-bold text-lg text-text-primary">Spending Breakdown</h3>
+              <p className="text-xs text-text-secondary/50">Category-wise spend mix</p>
             </div>
             <span className="material-symbols-outlined text-text-secondary/50 text-base">info</span>
           </div>
@@ -994,9 +1009,9 @@ export default function AnalyticsTab() {
             )}
           </div>
 
-          <div class="mt-6 pt-4 border-t border-glass-border/20 flex justify-between text-xs px-1">
-            <span class="text-text-secondary/60">Monthly Burn Total</span>
-            <span class="text-text-primary font-bold">{formatCurrency(summary.burn_rate, 0)}</span>
+          <div className="mt-6 pt-4 border-t border-glass-border/20 flex justify-between text-xs px-1">
+            <span className="text-text-secondary/60">Monthly Burn Total</span>
+            <span className="text-text-primary font-bold">{formatCurrency(summary.burn_rate, 0)}</span>
           </div>
         </div>
       </div>
@@ -1006,14 +1021,14 @@ export default function AnalyticsTab() {
         <div className="px-6 py-4 bg-white/5 border-b border-glass-border/20 flex items-center justify-between">
           <div>
             <h3 className="font-outfit font-bold text-base text-text-primary">Performance Ledger</h3>
-            <p class="text-xs text-text-secondary/40">Audit log entries of the current workspace</p>
+            <p className="text-xs text-text-secondary/40">Audit log entries of the current workspace</p>
           </div>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-primary uppercase">
-              <span class="w-2 h-2 bg-primary rounded-full animate-pulse"></span> Gains
+              <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span> Gains
             </span>
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-rose-expense uppercase">
-              <span class="w-2 h-2 bg-rose-expense rounded-full"></span> Losses
+              <span className="w-2 h-2 bg-rose-expense rounded-full"></span> Losses
             </span>
           </div>
         </div>
@@ -1021,7 +1036,7 @@ export default function AnalyticsTab() {
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
             <thead>
-              <tr class="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest border-b border-glass-border/20 bg-white/[0.01]">
+              <tr className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest border-b border-glass-border/20 bg-white/[0.01]">
                 <th className="px-6 py-3.5">Date</th>
                 <th className="px-6 py-3.5">Description</th>
                 <th className="px-6 py-3.5">Category</th>
@@ -1029,12 +1044,14 @@ export default function AnalyticsTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-glass-border/10 text-xs">
-              {recentTxns.length === 0 ? (
+              {filteredRecentTxns.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="text-center py-8 text-text-secondary/40">No transactions recorded.</td>
+                  <td colSpan="4" className="text-center py-8 text-text-secondary/40">
+                    {recentTxns.length === 0 ? 'No transactions recorded.' : 'No transaction entries match this query.'}
+                  </td>
                 </tr>
               ) : (
-                recentTxns.map((txn, idx) => {
+                filteredRecentTxns.map((txn, idx) => {
                   const isInc = txn.type === 'income';
                   return (
                     <tr key={idx} className="hover:bg-white/5 transition-all duration-200 cursor-pointer">

@@ -81,7 +81,7 @@ export default function SavingsGoals({ goals, onRefresh, onViewAll }) {
         </button>
       </h3>
 
-      <div className="space-y-6 flex-1">
+      <div className="space-y-4 flex-1 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
         {goals.map((goal, index) => {
           const styling = getIconStyles(goal.icon, index);
           const pct = goal.progress_percentage ?? 0;

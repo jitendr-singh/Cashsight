@@ -8,6 +8,7 @@ import os
 import tempfile
 import logging
 
+from app.config.settings import settings
 from app.config.database import get_db
 from app.models.investment import Investment, InvestmentStatus
 from app.models.transaction import Transaction, TransactionType
@@ -122,8 +123,6 @@ async def get_portfolio(
             
         updated_investments.append(inv)
 
-    db.commit() # Save the calculated values
-
     total_profit_loss = current_value - total_invested
     profit_loss_percentage = (total_profit_loss / total_invested * 100) if total_invested > 0 else 0.0
 
@@ -216,14 +215,13 @@ async def get_suggestions(
         SavingsGoal.user_id == current_user.id,
         SavingsGoal.title.ilike("%emergency%")
     ).all()
-    
     if emergency_goals:
         emergency_target = sum(g.target_amount for g in emergency_goals)
         total_emergency_saved = sum(g.saved_amount for g in emergency_goals)
         emergency_gap = max(0.0, emergency_target - total_emergency_saved)
     else:
-        # Default: 3 months of expenses (safety first, minimum ₹15,000)
-        emergency_target = max(15000.0, monthly_expense * 3)
+        # Default: 3 months of expenses (safety first, minimum from settings)
+        emergency_target = max(settings.EMERGENCY_FUND_MINIMUM, monthly_expense * 3)
         emergency_gap = max(0.0, emergency_target - total_savings)
 
     # Calculate runway months
@@ -525,14 +523,80 @@ async def update_investment(
             detail="Investment not found."
         )
 
+    old_asset_name = inv.asset_name
+
     update_dict = inv_data.model_dump(exclude_unset=True)
     for field, value in update_dict.items():
         setattr(inv, field, value)
 
     inv.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(inv)
-    return inv
+
+    # Sync ledger transaction if amount or name changed
+    if "amount_invested" in update_dict or "asset_name" in update_dict:
+        txn = db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.type == TransactionType.expense,
+            Transaction.category == "Investment",
+            Transaction.description.like(f"%{old_asset_name}%")
+        ).first()
+        if txn:
+            if "amount_invested" in update_dict:
+                txn.amount = inv.amount_invested
+            if "asset_name" in update_dict or "amount_invested" in update_dict:
+                txn.description = f"Invested in {inv.asset_name} ({inv.asset_type.replace('_', ' ').title()})"
+
+    try:
+        db.commit()
+        db.refresh(inv)
+        return inv
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Update failed: {str(e)}"
+        )
+
+
+# ─── DELETE INVESTMENT ──────────────────────────────────────────────────────
+
+@router.delete("/investments/{investment_id}")
+async def delete_investment(
+    investment_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    inv = db.query(Investment).filter(
+        Investment.id == investment_id,
+        Investment.user_id == current_user.id
+    ).first()
+
+    if not inv:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Investment not found."
+        )
+
+    # Find corresponding transaction and delete it
+    txn = db.query(Transaction).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.type == TransactionType.expense,
+        Transaction.category == "Investment",
+        Transaction.description.like(f"%{inv.asset_name}%")
+    ).first()
+
+    if txn:
+        db.delete(txn)
+
+    db.delete(inv)
+    try:
+        db.commit()
+        return {"message": "Investment and associated transaction deleted successfully."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete investment: {str(e)}"
+        )
 
 
 # ─── LIVE PRICE LOOKUP ───────────────────────────────────────────────────────

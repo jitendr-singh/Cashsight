@@ -38,8 +38,6 @@ async def create_transaction(
     db.commit()
     db.refresh(new_transaction)
     return new_transaction
-
-
 # ─── GET ALL TRANSACTIONS ────────────────────────────────────────────────────
 
 @router.get("/transactions", response_model=List[TransactionResponse])
@@ -50,6 +48,9 @@ async def get_transactions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Cap limit to prevent memory exhaustion / DB scanning
+    limit = max(1, min(limit, 100))
+
     query = db.query(Transaction).filter(
         Transaction.user_id == current_user.id
     )

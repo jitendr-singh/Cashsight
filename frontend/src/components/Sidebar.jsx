@@ -10,6 +10,7 @@ export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
     { id: 'investments', label: 'Investments', icon: 'trending_up' },
     { id: 'transactions', label: 'Transactions', icon: 'receipt_long' },
     { id: 'savings', label: 'Savings Goals', icon: 'savings' },
+    { id: 'ai_copilot', label: 'AI Copilot', icon: 'psychology' },
     { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
@@ -26,7 +27,7 @@ export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
       {/* SideNavBar */}
       <aside
         id="side-nav"
-        className={`fixed left-0 top-0 h-full w-[280px] bg-slate-surface backdrop-blur-[20px] border-r border-glass-border shadow-2xl flex flex-col py-margin-page px-gutter-desktop z-50 transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1) ${
+        className={`fixed left-0 top-0 h-full w-[280px] bg-slate-surface backdrop-blur-[20px] border-r border-glass-border shadow-2xl flex flex-col py-margin-page px-gutter-desktop z-50 transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -75,14 +76,22 @@ export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
 
         {/* Footer Area */}
         <div className="mt-auto pt-6 border-t border-glass-border space-y-2">
-          <button className="w-full py-3 mb-4 bg-gradient-to-r from-primary to-secondary text-on-primary font-bold rounded-lg shadow-[0_0_20px_rgba(90,240,179,0.3)] hover:brightness-110 active:scale-[0.98] transition-all text-sm">
-            Upgrade to Pro
-          </button>
-          
-          <button className="w-full flex items-center gap-3 px-4 py-2 text-on-surface-variant font-body-base hover:text-primary transition-colors text-left text-sm">
+          {/* Upgrade to Pro — Coming Soon */}
+          <div className="w-full mb-2 relative overflow-hidden rounded-lg">
+            <div className="w-full py-2.5 bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/20 text-primary font-bold text-sm text-center rounded-lg select-none">
+              Upgrade to Pro
+              <span className="ml-2 text-[9px] px-1.5 py-0.5 bg-primary/20 rounded font-bold tracking-wider uppercase">Soon</span>
+            </div>
+          </div>
+
+          <a
+            href="mailto:support@capitallens.com"
+            className="w-full flex items-center gap-3 px-4 py-2 text-on-surface-variant font-body-base hover:text-primary transition-colors text-left text-sm"
+            aria-label="Email Support"
+          >
             <span className="material-symbols-outlined">help</span>
             <span>Support</span>
-          </button>
+          </a>
 
           <button
             onClick={logout}
