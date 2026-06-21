@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Logo from './Logo';
 
 export default function AuthPage({ onBackToLanding }) {
   const { login, register } = useAuth();
@@ -91,15 +92,10 @@ export default function AuthPage({ onBackToLanding }) {
 
         {/* Branding header */}
         <div className="text-center space-y-2">
-          <div className="flex justify-center items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-[32px] animate-pulse">
-              monetization_on
-            </span>
-            <h1 className="font-display-lg text-3xl font-bold tracking-tighter bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Capitallens
-            </h1>
+          <div className="flex justify-center items-center">
+            <Logo size={46} textClass="text-4xl" />
           </div>
-          <p className="text-on-surface-variant/80 text-xs uppercase tracking-widest font-bold">
+          <p className="text-on-surface-variant/80 text-[10px] uppercase tracking-widest font-bold">
             Personal Finance Dashboard
           </p>
         </div>

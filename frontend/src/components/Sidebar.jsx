@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import Logo from './Logo';
 
 export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
   const { logout, user } = useAuth();
@@ -27,21 +28,16 @@ export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
       {/* SideNavBar */}
       <aside
         id="side-nav"
-        className={`fixed left-0 top-0 h-full w-[280px] bg-slate-surface backdrop-blur-[20px] border-r border-glass-border shadow-2xl flex flex-col py-margin-page px-gutter-desktop z-50 transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`fixed left-0 top-0 h-full w-[280px] bg-slate-surface backdrop-blur-[20px] border-r border-glass-border shadow-2xl flex flex-col py-margin-page px-gutter-desktop z-50 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
-        <div className="mb-10 flex justify-between items-start">
-          <div>
-            <h1 className="font-display-lg text-display-lg text-primary tracking-tighter leading-none mb-1">
-              Capitallens
-            </h1>
-            <p className="font-body-base text-on-surface-variant opacity-70 text-[12px]">
-              Premium Wealth Console
-            </p>
+        {/* Sidebar Header (Logo + Mobile Close Button) */}
+        <div className="mb-8 flex justify-between items-center w-full relative">
+          <div className="flex-1 w-[180px]">
+            <Logo size={60} textClass="text-[35px]" className="origin-left scale-[0.8]" />
           </div>
           <button
-            className="lg:hidden p-2 text-on-surface-variant hover:text-primary transition-colors"
+            className="lg:hidden p-1.5 text-on-surface-variant hover:text-primary transition-colors cursor-pointer z-10 flex-shrink-0"
             onClick={onClose}
             aria-label="Close Sidebar"
           >
@@ -60,11 +56,10 @@ export default function Sidebar({ isOpen, onClose, activeTab, setActiveTab }) {
                   setActiveTab(item.id);
                   onClose();
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg group transition-all relative ${
-                  isActive
-                    ? 'text-primary font-body-bold bg-primary-container/10'
-                    : 'text-on-surface-variant font-body-base hover:bg-surface-variant/50'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg group transition-all relative ${isActive
+                  ? 'text-primary font-body-bold bg-primary-container/10'
+                  : 'text-on-surface-variant font-body-base hover:bg-surface-variant/50'
+                  }`}
               >
                 {isActive && <div className="active-link-indicator"></div>}
                 <span className="material-symbols-outlined">{item.icon}</span>
