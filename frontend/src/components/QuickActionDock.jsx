@@ -1,7 +1,7 @@
 import React from 'react';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function QuickActionDock({ summaryData, goals, onAddTransaction, onAddGoal, onOpenChat, setActiveTab }) {
+export default function QuickActionDock({ summaryData, goals, onAddTransaction, onAddGoal, onOpenChat, setActiveTab, isOffline }) {
   const { formatCurrency } = useCurrency();
 
   const income = summaryData?.monthly_income ?? 0;
@@ -146,8 +146,14 @@ export default function QuickActionDock({ summaryData, goals, onAddTransaction, 
         <div className="grid grid-cols-2 gap-2 flex-1">
           {/* Action 1: Log Transaction */}
           <button
-            onClick={onAddTransaction}
-            className="flex items-center gap-2 px-3 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/45 rounded-lg text-primary hover:scale-[1.02] active:scale-[0.98] transition-all text-xs font-bold cursor-pointer text-left h-[42px]"
+            onClick={isOffline ? undefined : onAddTransaction}
+            disabled={isOffline}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left h-[42px] ${
+              isOffline
+                ? 'bg-rose-950/20 text-rose-300/40 border border-rose-950/30 cursor-not-allowed opacity-50'
+                : 'bg-primary/10 hover:bg-primary/20 border border-primary/20 hover:border-primary/45 text-primary hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+            }`}
+            title={isOffline ? "Database offline. Writes disabled." : "Log new entry"}
           >
             <span className="material-symbols-outlined text-[16px]">add_circle</span>
             Log Entry
@@ -155,8 +161,14 @@ export default function QuickActionDock({ summaryData, goals, onAddTransaction, 
 
           {/* Action 2: Goal Milestone */}
           <button
-            onClick={onAddGoal}
-            className="flex items-center gap-2 px-3 py-2 bg-violet-accent/10 hover:bg-violet-accent/20 border border-violet-accent/20 hover:border-violet-accent/45 rounded-lg text-violet-accent hover:scale-[1.02] active:scale-[0.98] transition-all text-xs font-bold cursor-pointer text-left h-[42px]"
+            onClick={isOffline ? undefined : onAddGoal}
+            disabled={isOffline}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left h-[42px] ${
+              isOffline
+                ? 'bg-rose-950/20 text-rose-300/40 border border-rose-950/30 cursor-not-allowed opacity-50'
+                : 'bg-violet-accent/10 hover:bg-violet-accent/20 border border-violet-accent/20 hover:border-violet-accent/45 text-violet-accent hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+            }`}
+            title={isOffline ? "Database offline. Writes disabled." : "Create new goal"}
           >
             <span className="material-symbols-outlined text-[16px]">emoji_events</span>
             New Goal

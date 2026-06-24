@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 
-export default function Header({ onOpenSidebar, activeTab, setActiveTab, searchQuery, onSearchChange }) {
+export default function Header({ onOpenSidebar, activeTab, setActiveTab, searchQuery, onSearchChange, isOffline }) {
   const { user, logout } = useAuth();
   const { currency, setCurrency } = useCurrency();
   const [searchFocused, setSearchFocused] = useState(false);
@@ -90,6 +90,14 @@ export default function Header({ onOpenSidebar, activeTab, setActiveTab, searchQ
 
       {/* Right side: Currency Switcher & Profile avatar */}
       <div className="flex items-center gap-2.5 md:gap-4 relative">
+        
+        {/* Offline Badge */}
+        {isOffline && (
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-950/20 border border-rose-500/20 rounded-full text-[10px] font-bold text-rose-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+            <span className="hidden sm:inline">OFFLINE</span>
+          </div>
+        )}
         
         {/* Currency Switcher Toggle */}
         <button

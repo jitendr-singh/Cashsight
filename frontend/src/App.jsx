@@ -41,6 +41,11 @@ export default function App() {
   const [dataLoading, setDataLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
 
+  // SaaS Offline/Connection Reliability States
+  const [isOffline, setIsOffline] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(() => localStorage.getItem('cl_cache_timestamp'));
+
   // Legacy High-Fidelity Mockup Fallbacks for empty database states
   const mockSummary = {
     total_income: 125000.00,
@@ -158,8 +163,8 @@ export default function App() {
   ];
 
   // Parallel Fetch Dashboard Data
-  const fetchDashboardData = useCallback(async () => {
-    setDataLoading(true);
+  const fetchDashboardData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setDataLoading(true);
     try {
       const [summary, goals, mix, recent] = await Promise.all([
         analyticsService.getSummary(),
@@ -187,27 +192,34 @@ export default function App() {
         setSavingsGoals(goals || []);
         setSpendMix(mix || { expense_by_category: [], income_by_category: [] });
         setRecentTransactions(txns);
+
+        // Save successfully loaded data to cache
+        localStorage.setItem('cl_cached_summary', JSON.stringify(summary));
+        localStorage.setItem('cl_cached_goals', JSON.stringify(goals));
+        localStorage.setItem('cl_cached_mix', JSON.stringify(mix));
+        localStorage.setItem('cl_cached_recent', JSON.stringify(txns));
+        const nowStr = new Date().toLocaleString();
+        localStorage.setItem('cl_cache_timestamp', nowStr);
+        setLastSyncTime(nowStr);
+
+        setIsOffline(false);
+        setConnectionError(false);
       }
     } catch (error) {
       console.error('Failed to sync dashboard data with FastAPI.', error);
-      if (!isDemoMode) {
-        setSummaryData({
-          total_income: 0.0,
-          monthly_income: 0.0,
-          income_trend: 0.0,
-          total_expense: 0.0,
-          total_savings: 0.0,
-          locked_savings: 0.0,
-          available_cash: 0.0,
-          savings_rate: 0.0,
-          burn_rate: 0.0,
-          runway_months: 0.0,
-          transaction_count: 0,
-          this_month_txns: 0
-        });
-        setSavingsGoals([]);
-        setSpendMix({ expense_by_category: [], income_by_category: [] });
-        setRecentTransactions([]);
+      
+      // Try to load cached data
+      const cachedSummary = localStorage.getItem('cl_cached_summary');
+      if (cachedSummary && !isDemoMode) {
+        setSummaryData(JSON.parse(cachedSummary));
+        setSavingsGoals(JSON.parse(localStorage.getItem('cl_cached_goals') || '[]'));
+        setSpendMix(JSON.parse(localStorage.getItem('cl_cached_mix') || '{"expense_by_category":[],"income_by_category":[]}'));
+        setRecentTransactions(JSON.parse(localStorage.getItem('cl_cached_recent') || '[]'));
+        setIsOffline(true);
+        setConnectionError(false);
+      } else if (!isDemoMode) {
+        // No cache exists, display fullscreen connection error page
+        setConnectionError(true);
       }
     } finally {
       setDataLoading(false);
@@ -224,7 +236,7 @@ export default function App() {
 
   const clearDemoData = () => {
     setIsDemoMode(false);
-    fetchDashboardData();
+    fetchDashboardData(false);
   };
 
   const isDatabaseEmpty = !dataLoading && 
@@ -237,7 +249,7 @@ export default function App() {
   const handleCreateTransaction = async (txnData) => {
     try {
       await transactionService.createTransaction(txnData);
-      fetchDashboardData();
+      fetchDashboardData(true);
     } catch (e) {
       console.error(e);
     }
@@ -247,7 +259,20 @@ export default function App() {
   useEffect(() => {
     if (!authLoading && !isDemoMode) {
       if (user) {
-        fetchDashboardData();
+        // Instantly load cache first to prevent blank screens
+        const cachedSummary = localStorage.getItem('cl_cached_summary');
+        if (cachedSummary) {
+          setSummaryData(JSON.parse(cachedSummary));
+          setSavingsGoals(JSON.parse(localStorage.getItem('cl_cached_goals') || '[]'));
+          setSpendMix(JSON.parse(localStorage.getItem('cl_cached_mix') || '{"expense_by_category":[],"income_by_category":[]}'));
+          setRecentTransactions(JSON.parse(localStorage.getItem('cl_cached_recent') || '[]'));
+          setDataLoading(false);
+          // Sync silently in background
+          fetchDashboardData(true);
+        } else {
+          // No cache available, perform initial hard fetch
+          fetchDashboardData(false);
+        }
       } else {
         // Clear all dashboard data states when logged out
         setSummaryData(null);
@@ -255,9 +280,25 @@ export default function App() {
         setSpendMix(null);
         setRecentTransactions([]);
         setDataLoading(true);
+        setIsOffline(false);
+        setConnectionError(false);
       }
     }
   }, [authLoading, fetchDashboardData, isDemoMode, user]);
+
+  // Silent auto-reconnector interval when offline/error
+  useEffect(() => {
+    let intervalId = null;
+    if (user && (isOffline || connectionError)) {
+      intervalId = setInterval(() => {
+        console.log('[SaaS Auto-Reconnector] Attempting silent database sync...');
+        fetchDashboardData(true);
+      }, 15000); // Retry every 15 seconds
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, isOffline, connectionError, fetchDashboardData]);
 
   // Executive Date Formatter
   const getExecutiveDate = () => {
@@ -314,6 +355,44 @@ export default function App() {
     return <LandingPage onEnterConsole={() => setShowAuth(true)} />;
   }
 
+  // Fullscreen Offline Connection Screen (when server is down & no cached data is available)
+  if (connectionError) {
+    return (
+      <div className="fixed inset-0 bg-[#030712] flex flex-col items-center justify-center gap-6 z-[999] px-4 text-center select-none font-body-base">
+        <div className="fixed inset-0 scanning-grid pointer-events-none z-0 opacity-40"></div>
+        <div className="ambient-orb bg-rose-500/20 w-[300px] h-[300px] rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="relative p-6 rounded-2xl bg-[#080e1a]/95 border border-glass-border/20 shadow-2xl z-10 flex flex-col items-center max-w-md w-full animate-fade-in-up">
+          <div className="w-16 h-16 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 animate-pulse mb-4">
+            <span className="material-symbols-outlined text-[36px] font-bold">cloud_off</span>
+          </div>
+          
+          <h2 className="font-outfit font-extrabold text-2xl text-transparent bg-clip-text bg-gradient-to-b from-white to-[#cbd5e1] tracking-tight mb-2">
+            Wealth Console Offline
+          </h2>
+          <p className="text-sm text-[#dde2f3] opacity-70 leading-relaxed mb-6">
+            Unable to establish a secure database connection. Your cloud wealth command center will load automatically once connectivity is restored.
+          </p>
+
+          <div className="flex items-center gap-3 justify-center mb-6">
+            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></div>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-rose-400">
+              Retrying connection in background...
+            </span>
+          </div>
+
+          <button
+            onClick={() => fetchDashboardData(false)}
+            className="w-full relative group overflow-hidden rounded-xl bg-primary text-[#080e1a] font-bold text-sm tracking-wide py-3 hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_4px_15px_rgba(90,240,179,0.15)] flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-lg">sync</span>
+            Retry Sync Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="font-body-base text-body-base bg-[#030712] text-[#dde2f3] min-h-screen relative overflow-x-hidden">
       {/* Ambient Background Elements */}
@@ -337,11 +416,30 @@ export default function App() {
         setActiveTab={setActiveTab}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        isOffline={isOffline}
       />
 
       {/* Main Console View */}
       <main className="lg:ml-[280px] pt-24 px-4 md:px-gutter-desktop pb-margin-page transition-all duration-300 relative z-10">
         
+        {/* Offline Caching Snap Alert Banner */}
+        {isOffline && (
+          <div className="mb-6 p-4 rounded-xl border border-rose-500/30 bg-rose-950/20 backdrop-blur-md flex flex-col sm:flex-row justify-between items-center gap-3 shadow-[0_0_15px_rgba(239,68,68,0.1)] z-20 animate-fade-in-up">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-rose-400 animate-pulse">
+                signal_wifi_off
+              </span>
+              <p className="text-xs sm:text-sm text-rose-200 text-left">
+                <span className="font-bold text-rose-300">Connection Interrupted.</span> Showing last synced snapshot from <span className="font-semibold">{lastSyncTime || 'last session'}</span>. Writes are temporarily disabled until connection is restored.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></div>
+              <span className="text-[9px] uppercase tracking-wider font-bold text-rose-400 whitespace-nowrap">Reconnecting...</span>
+            </div>
+          </div>
+        )}
+
         {/* Render Tab Views (Focus is primarily Dashboard) */}
         {activeTab === 'dashboard' ? (
           <>
@@ -488,6 +586,7 @@ export default function App() {
                   onAddGoal={() => setActiveTab('savings')}
                   onOpenChat={() => setIsChatOpen(true)}
                   setActiveTab={setActiveTab}
+                  isOffline={isOffline}
                 />
 
                 <MetricsGrid summaryData={summaryData} setActiveTab={setActiveTab} />

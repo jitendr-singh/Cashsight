@@ -173,11 +173,7 @@ export const authService = {
   },
 
   getCurrentUser: async () => {
-    return request('/users/me', {}, {
-      id: 1,
-      email: 'executive@capitallens.com',
-      name: 'Executive User'
-    });
+    return request('/users/me', {}, null);
   },
 
   updateProfile: async ({ name, email }) => {
@@ -203,19 +199,7 @@ export const authService = {
 // ─── ANALYTICS SERVICES ──────────────────────────────────────────────────────
 export const analyticsService = {
   getSummary: async () => {
-    return request('/analytics/summary', {}, {
-      total_income: 125000.00,
-      total_expense: 45000.00,
-      total_savings: 320000.00,
-      locked_savings: 200000.00,
-      available_cash: 120000.00,
-      savings_rate: 64.0,
-      burn_rate: 45000.00,
-      runway_months: 7.1,
-      savings_rate_trend: 0.0,
-      burn_rate_trend: 0.0,
-      runway_trend: 0.0
-    });
+    return request('/analytics/summary', {}, null);
   },
 
   getRangeData: async (filters = {}) => {
@@ -383,137 +367,26 @@ export const analyticsService = {
   },
 
   getCategories: async () => {
-    return request('/analytics/categories', {}, {
-      categories: ['Housing', 'Food', 'Transport', 'Utilities', 'Entertainment', 'Gadgets']
-    });
+    return request('/analytics/categories', {}, null);
   },
 
   getByCategory: async (scope = 'month') => {
-    return request(`/analytics/by-category?scope=${scope}`, {}, {
-      scope,
-      expense_by_category: [
-        { category: 'Housing', amount: 18000.00 },
-        { category: 'Food', amount: 12000.00 },
-        { category: 'Transport', amount: 5000.00 },
-        { category: 'Other', amount: 10000.00 }
-      ],
-      income_by_category: [
-        { category: 'Salary', amount: 100000.00 },
-        { category: 'Investment', amount: 25000.00 }
-      ]
-    });
+    return request(`/analytics/by-category?scope=${scope}`, {}, null);
   },
 
   getMonthlyTrend: async () => {
-    return request('/analytics/monthly-trend', {}, {
-      monthly_trend: [
-        { month: 'MON', income: 600000, expense: 50000 },
-        { month: 'TUE', income: 720000, expense: 60000 },
-        { month: 'WED', income: 800000, expense: 70000 },
-        { month: 'THU', income: 600000, expense: 50000 },
-        { month: 'FRI', income: 960000, expense: 90000 },
-        { month: 'SAT', income: 1200000, expense: 12450 }
-      ]
-    });
+    return request('/analytics/monthly-trend', {}, null);
   },
 
   getRecentTransactions: async () => {
-    return request('/analytics/recent', {}, {
-      recent_transactions: [
-        {
-          id: '#TXN-9082-CS',
-          amount: 100000.00,
-          type: 'income',
-          category: 'Salary',
-          description: 'Monthly corporate salary',
-          date: 'Jun 22, 10:00'
-        },
-        {
-          id: '#TXN-8812-CS',
-          amount: 25000.00,
-          type: 'income',
-          category: 'Investment',
-          description: 'Dividend payout',
-          date: 'Jun 21, 14:30'
-        },
-        {
-          id: '#TXN-8745-CS',
-          amount: 18000.00,
-          type: 'expense',
-          category: 'Housing',
-          description: 'Apartment rent payout',
-          date: 'Jun 18, 09:15'
-        },
-        {
-          id: '#TXN-8630-CS',
-          amount: 12000.00,
-          type: 'expense',
-          category: 'Food',
-          description: 'Groceries & Dining',
-          date: 'Jun 15, 20:00'
-        },
-        {
-          id: '#TXN-8512-CS',
-          amount: 5000.00,
-          type: 'expense',
-          category: 'Transport',
-          description: 'Fuel & Commute',
-          date: 'Jun 12, 11:30'
-        },
-        {
-          id: '#TXN-8401-CS',
-          amount: 10000.00,
-          type: 'expense',
-          category: 'Other',
-          description: 'Weekend shopping & leisure',
-          date: 'Jun 10, 16:45'
-        }
-      ]
-    });
+    return request('/analytics/recent', {}, null);
   },
 };
 
 // ─── SAVINGS GOALS SERVICES ──────────────────────────────────────────────────
 export const savingsService = {
   getGoals: async () => {
-    return request('/savings', {}, [
-      {
-        id: 1,
-        title: "Euro Summer '25",
-        target_amount: 10000,
-        saved_amount: 7200,
-        monthly_contribution: 500,
-        deadline: '2025-06-01T00:00:00',
-        icon: 'flight_takeoff',
-        is_completed: false,
-        progress_percentage: 72.0,
-        months_remaining: 12
-      },
-      {
-        id: 2,
-        title: 'Property Depot',
-        target_amount: 100000,
-        saved_amount: 45000,
-        monthly_contribution: 2500,
-        deadline: '2027-01-01T00:00:00',
-        icon: 'home',
-        is_completed: false,
-        progress_percentage: 45.0,
-        months_remaining: 18
-      },
-      {
-        id: 3,
-        title: 'Retirement Fund',
-        target_amount: 500000,
-        saved_amount: 455000,
-        monthly_contribution: 5000,
-        deadline: '2045-12-31T00:00:00',
-        icon: 'rocket_launch',
-        is_completed: false,
-        progress_percentage: 91.0,
-        months_remaining: 240
-      }
-    ]);
+    return request('/savings', {}, null);
   },
 
   createGoal: async (goalData) => {
@@ -549,7 +422,7 @@ export const savingsService = {
   },
 
   getContributions: async () => {
-    return request('/savings/contributions/all', {}, []);
+    return request('/savings/contributions/all', {}, null);
   }
 };
 
@@ -557,7 +430,7 @@ export const savingsService = {
 export const transactionService = {
   getTransactions: async (filters = {}) => {
     const params = new URLSearchParams(filters).toString();
-    return request(`/transactions?${params}`, {}, []);
+    return request(`/transactions?${params}`, {}, null);
   },
 
   createTransaction: async (txnData) => {
@@ -584,22 +457,11 @@ export const transactionService = {
 // ─── INVESTMENT SERVICES ─────────────────────────────────────────────────────
 export const investmentService = {
   getPortfolio: async () => {
-    return request('/investments/portfolio', { timeout: 60000 }, {
-      total_invested: 0.0,
-      current_value: 0.0,
-      total_profit_loss: 0.0,
-      profit_loss_percentage: 0.0,
-      total_monthly_rent: 0.0,
-      investments: []
-    });
+    return request('/investments/portfolio', { timeout: 60000 }, null);
   },
 
   getSuggestions: async () => {
-    return request('/investments/suggestions', { timeout: 50000 }, {
-      available_cash: 0.0,
-      savings_rate: 0.0,
-      suggestions: []
-    });
+    return request('/investments/suggestions', { timeout: 50000 }, null);
   },
 
   create: async (data) => {
@@ -677,8 +539,6 @@ export const aiChatService = {
         active_tab: activeTab,
         chat_history: chatHistory
       })
-    }, {
-      response: "Aapka system offline hai, par main aapko bata sakta hoon ki aapki financial command configuration bilkul active hai! Please backend connect karein full advice ke liye."
-    });
+    }, null);
   }
 };
